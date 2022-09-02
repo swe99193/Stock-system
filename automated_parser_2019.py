@@ -7,7 +7,6 @@ from io import StringIO
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
 
-# TODO: Test each year and season
 def parse_func(param, connection):
     ''' 
         Parse data of a season and store it into sqlite table.
@@ -20,10 +19,10 @@ def parse_func(param, connection):
         Note: If you call this function with the same parameters again, the original data will be replaced by new data.
 
         Note: 損益表
-        1. for Q4, we will get the yearly data, so we should subtract it from Q1 + Q2 + Q3 data
+        1. for Q4, we will get the accumulated data, so we should subtract it from Q1 + Q2 + Q3 data
 
         Note: 現金流量表
-        1. for Q2, Q3 & Q4, we will get the accumulated data, so we should subtract it from the data of previous season
+        1. for Q2, Q3 & Q4, we will get the accumulated data, so we should subtract it from the data of all previous seasons
     '''
 
     cursor = connection.cursor()
@@ -35,23 +34,17 @@ def parse_func(param, connection):
     ls_table_query = "SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';"
     for row in cursor.execute(ls_table_query):  table_list.add(row[0])
 
-    # Q4 dependency: Q1, Q2, Q3
+    # dependency: all previous seasons in the same year
+    # ex: Q4 dependency: Q1, Q2, Q3
     # check order: Q1 -> Q2 -> Q3
-    if param[2] == '4':
-        for season in ['1', '2', '3']:
-            new_param = param[0], param[1], season
+    if param[2] in ['2', '3', '4']:
+        L = int(param[2])
+        for season in range(1, L):
+            new_param = param[0], param[1], str(season)
             if table_name(new_param) not in table_list:
                 print(f'\nMissing required dependency: Q{season}')
                 print(f'Start parsing dependencies...')
                 parse_func(new_param, connection)
-    
-    # Q2, Q3 dependency: previous season
-    elif param[2] in ['2', '3']:
-        new_param = param[0], param[1], str(int(param[2])-1)
-        if table_name(new_param) not in table_list:
-            print(f'\nMissing required dependency: Q{new_param[2]}')
-            print(f'Start parsing dependencies...')
-            parse_func(new_param, connection)
         
     print('----------------------------------------------------------')
     
@@ -70,17 +63,16 @@ def parse_func(param, connection):
         dfs = parse_func_helper(param, connection)
 
         ####### Post-process target #######
-        # TODO: parallel processing
 
         # process Q4 損益表
         if param[2] == '4':
             income_Code = dfs[1]['Code'].to_list()
-            process_income(param, connection, income_Code)
+            process_accumulated_data(param, connection, income_Code)
 
         # process Q2 or Q3 or Q4 現金流量表
         if param[2] in ['2', '3', '4']:
             cash_Code = dfs[2]['Code'].to_list()
-            process_cash(param, connection, cash_Code)
+            process_accumulated_data(param, connection, cash_Code)
 
     # if any error occur, drop corrupted table
     except:
@@ -101,6 +93,9 @@ def parse_func(param, connection):
 def parse_func_helper(param, connection):
     ''' 
         parsing core function
+
+        1. insert parsed data (sqlite)
+        2. return pandas table
     '''
     cursor = connection.cursor()
     table = table_name(param)
@@ -159,9 +154,10 @@ def parse_func_helper(param, connection):
     return dfs
 
 
-def process_income(param, connection, income_Code):
+def process_accumulated_data(param, connection, Codes):
     '''
-        Q4 - (Q1+Q2+Q3)
+        Given codes that have accumulated data, calculate their current data
+        ex: Q4 - (Q1+Q2+Q3)
 
         Note: if the previous record does not have matching element, do nothing. 
             I suppose all important rows we need will have their counterparts in the previous season.
@@ -170,50 +166,22 @@ def process_income(param, connection, income_Code):
     cursor = connection.cursor()
     table = table_name(param)
     prev_param = [param[0], param[1], None]
+    L = int(param[2])
 
-    # TODO: parallel processing
-    for Code in income_Code:
-        cur_q = f"SELECT Money FROM {table} WHERE Code = '{Code}'"
+    for code in Codes:
+        cur_q = f"SELECT Money FROM {table} WHERE Code = '{code}'"
         tmp = cur_val = cursor.execute(cur_q).fetchone()[0]
 
-        for season in ['1', '2', '3']:
-            prev_param[2] = season
+        for season in range(1, L):
+            prev_param[2] = str(season)
             prev_table = table_name(prev_param)
 
-            prev_q = f"SELECT Money FROM {prev_table} WHERE Code = '{Code}'"
+            prev_q = f"SELECT Money FROM {prev_table} WHERE Code = '{code}'"
             prev_val = cursor.execute(prev_q).fetchone()
 
             if prev_val is not None:
                 cur_val -= prev_val[0]
     
         if cur_val != tmp:
-            query = f"UPDATE {table} SET Money={cur_val} WHERE Code = '{Code}'"
+            query = f"UPDATE {table} SET Money={cur_val} WHERE Code = '{code}'"
             cursor.execute(query)
-
-
-def process_cash(param, connection, cash_Code):
-    '''
-        cur season - prev season
-        
-        Note: if the previous record does not have matching element, do nothing. 
-            I suppose all important rows we need will have their counterparts in the previous season.
-            For some rows that does not appear in every year, they might not be important, so we do nothing.    
-    '''
-    cursor = connection.cursor()
-    table = table_name(param)
-    prev_param = param[0], param[1], str(int(param[2])-1)
-    prev_table = table_name(prev_param)
-
-    # TODO: parallel processing
-    for Code in cash_Code:
-        prev_q = f"SELECT Money FROM {prev_table} WHERE Code = '{Code}'"
-        cur_q = f"SELECT Money FROM {table} WHERE Code = '{Code}'"
-
-        prev_val = cursor.execute(prev_q).fetchone()
-        cur_val = cursor.execute(cur_q).fetchone()[0]
-
-        if prev_val is not None:
-            cur_val -= prev_val[0]
-            query = f"UPDATE {table} SET Money={cur_val} WHERE Code = '{Code}'"
-            cursor.execute(query)
-
