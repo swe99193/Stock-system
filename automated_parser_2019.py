@@ -82,7 +82,7 @@ def parse_func(param, connection):
             cash_Code = dfs[2]['Code'].to_list()
             process_cash(param, connection, cash_Code)
 
-    # if any error occur, don't commit changes
+    # if any error occur, drop corrupted table
     except:
         query = f"DROP TABLE {table};"
         print('[QUERY] ' + query) 
