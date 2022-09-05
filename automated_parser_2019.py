@@ -92,7 +92,7 @@ def parse_func(param, connection):
 
 def parse_func_helper(param, connection):
     ''' 
-        parsing core function
+        parsing core function (2019 ~)
 
         1. insert parsed data (sqlite)
         2. return pandas table
@@ -113,7 +113,7 @@ def parse_func_helper(param, connection):
     res.encoding = 'big5'
 
     try:
-        dfs = pd.read_html(StringIO(res.text))
+        dfs = pd.read_html(StringIO(res.text))[0:3]
     except ValueError:
         print('Error: data not available...')
         raise
@@ -137,9 +137,10 @@ def parse_func_helper(param, connection):
         # eliminate ".0" induced by float type
         dfs[i]['Code'] = dfs[i]['Code'].str.replace('\.0','', regex=True)
         
-        # eliminate parenthesis and commas
-        for pattern in ['(', ')', ',']:
-            dfs[i]['Money'] = dfs[i]['Money'].str.replace(pattern,'', regex=True)
+        # eliminate parenthesis(to minus sign) and commas
+        pat_repl_dict = {'(': '-', ')':'', ',':''}
+        for pat, repl in pat_repl_dict.items():
+            dfs[i]['Money'] = dfs[i]['Money'].str.replace(pat, repl, regex=True)
         
         # convert "Money" to numeric
         dfs[i]['Money'] = pd.to_numeric(dfs[i]['Money'])
