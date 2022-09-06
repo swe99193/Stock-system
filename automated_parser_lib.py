@@ -6,6 +6,44 @@ from io import StringIO
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
+Title_to_Code = [
+{
+    # '權益總計', '權益總額' refer to the same index, but used interchangeably in different years
+    # '資產總計', '資產總額' 
+    # '其他非流動負債', '其他非流動負債合計'
+    # '存貨', '存貨合計'
+    # '無形資產', '無形資產合計'
+    '權益總計': '3XXX', 
+    '權益總額': '3XXX', 
+    '流動資產合計': '11XX', 
+    '流動負債合計': '21XX', 
+    '非流動負債合計': '25XX', 
+    '其他非流動負債': '2600',
+    '其他非流動負債合計': '2600', 
+    '資產總計': '1XXX', 
+    '資產總額': '1XXX', 
+    '存貨': '130X',
+    '存貨合計': '130X',
+    '應收帳款淨額': '1170', 
+    '無形資產': '1780',
+    '無形資產合計': '1780'
+},
+
+{
+    '營業毛利（毛損）': '5900', 
+    '營業收入合計': '4000', 
+    '營業利益（損失）': '6900', 
+    '繼續營業單位稅前淨利（淨損）': '7900', # 出現在損益表、現金流量表
+    '本期淨利（淨損）': '8200', 
+    '營業成本合計': '5000'
+},
+
+{
+    '折舊費用': 'A20100', 
+    '攤銷費用': 'A20200', 
+    '營業活動之淨現金流入（流出）': 'AAAA', 
+    '取得不動產、廠房及設備': 'B02700'
+}]
 
 def parse_func(param, connection):
     ''' 
@@ -51,16 +89,12 @@ def parse_func(param, connection):
     ####### process target #######
     # transaction occur
     try:
-        # create current table (sqlite)
-        query = 'CREATE TABLE IF NOT EXISTS ' + table + ' (\
-                    Code TEXT PRIMARY KEY, \
-                    Title TEXT, \
-                    Money BIGINT \
-                    );'
-        print('[QUERY] ' + query) 
-        cursor.execute(query)
-
-        dfs = parse_func_helper(param, connection)
+        # year 2019 ~
+        if int(param[1]) >= 2019:
+            dfs = parse_func_helper(param, connection)
+        # year 2013 ~ 2018
+        else:
+            dfs = parse_func_helper_2013(param, connection)
 
         ####### Post-process target #######
 
@@ -101,6 +135,15 @@ def parse_func_helper(param, connection):
     table = table_name(param)
     url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={param[0]}&SYEAR={param[1]}&SSEASON={param[2]}&REPORT_ID=C'
 
+
+    # create current table (sqlite)
+    query = 'CREATE TABLE IF NOT EXISTS ' + table + ' (\
+                Code TEXT, \
+                Title TEXT, \
+                Money BIGINT \
+                );'
+    print('[QUERY] ' + query) 
+    cursor.execute(query)
 
     # clear data (sqlite)
     query = f"DELETE FROM {table};"
@@ -152,8 +195,106 @@ def parse_func_helper(param, connection):
 
         # dfs[i].to_csv(path, encoding='utf-8', index=False)
 
+
+    # clear duplicate rows
+    # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
+    cursor.execute(f"DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)")
+
+    # rebuild a new table with primary key
+    new_table =  "d" + table
+    query = 'CREATE TABLE ' + new_table + ' (\
+                Code TEXT PRIMARY KEY, \
+                Title TEXT, \
+                Money BIGINT \
+                );'
+    cursor.execute(query)
+    query = f"INSERT INTO {new_table} SELECT * FROM {table};"
+    cursor.execute(query)
+    query = f"DROP TABLE {table};"
+    cursor.execute(query)
+    query = f"ALTER TABLE {new_table} RENAME TO {table};"
+    cursor.execute(query)
+
     return dfs
 
+def parse_func_helper_2013(param, connection):
+    ''' 
+        parsing core function (2013 ~ 2018)
+
+        1. insert parsed data (sqlite)
+        2. return pandas table
+    '''
+    cursor = connection.cursor()
+    table = table_name(param)
+    url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={param[0]}&SYEAR={param[1]}&SSEASON={param[2]}&REPORT_ID=C'
+
+    # create current table (sqlite)
+    query = 'CREATE TABLE IF NOT EXISTS ' + table + ' (\
+                Code TEXT, \
+                Money BIGINT \
+                );'
+    print('[QUERY] ' + query) 
+    cursor.execute(query)
+
+    # clear data (sqlite)
+    query = f"DELETE FROM {table};"
+    print('[QUERY] ' + query)
+    cursor.execute(query)
+
+    # parsing
+    print(f'parsing: {url}\n')
+    res = requests.get(url)
+    res.encoding = 'big5'
+
+    try:
+        dfs = pd.read_html(StringIO(res.text))[1:4]
+    except ValueError:
+        print('Error: data not available...')
+        raise
+
+    # dfs[1]    資產負債表
+    # dfs[2]    損益表
+    # dfs[3]    現金流量表
+
+    # save three financial statements
+    for i in range(3):
+        # drop useless columns
+        dfs[i] = dfs[i].iloc[:, 0:2]
+        dfs[i].columns = ['Code', 'Money']
+
+        # drop useless rows (that has blank in "Money")
+        dfs[i].dropna(subset='Money', inplace = True)
+
+        # change Chinese Title to Code
+        pairs = Title_to_Code[i]  # be careful with the index
+        for key, val in pairs.items():
+            dfs[i].loc[dfs[i]['Code'] == key , 'Code'] = val
+
+        # load data into sqlite
+        data = dfs[i].values.tolist()
+        query = "INSERT INTO " + table + " VALUES (?, ?);"
+        cursor.executemany(query, data)
+
+        # dfs[i].to_csv(path, encoding='utf-8', index=False)
+
+    # clear duplicate rows
+    # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
+    cursor.execute(f"DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)")
+
+    # rebuild a new table with primary key
+    new_table =  "d" + table
+    query = 'CREATE TABLE ' + new_table + ' (\
+                Code TEXT PRIMARY KEY, \
+                Money BIGINT \
+                );'
+    cursor.execute(query)
+    query = f"INSERT INTO {new_table} SELECT * FROM {table};"
+    cursor.execute(query)
+    query = f"DROP TABLE {table};"
+    cursor.execute(query)
+    query = f"ALTER TABLE {new_table} RENAME TO {table};"
+    cursor.execute(query)
+    return dfs
 
 def process_accumulated_data(param, connection, Codes):
     '''
