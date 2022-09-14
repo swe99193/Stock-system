@@ -91,22 +91,22 @@ def parse_func(param, connection):
     try:
         # year 2019 ~
         if int(param[1]) >= 2019:
-            dfs = parse_func_helper(param, connection)
+            dfs = _parse_func_helper(param, connection)
         # year 2013 ~ 2018
         else:
-            dfs = parse_func_helper_2013(param, connection)
+            dfs = _parse_func_helper_2013(param, connection)
 
         ####### Post-process target #######
 
         # process Q4 損益表
         if param[2] == '4':
             income_Code = dfs[1]['Code'].to_list()
-            process_accumulated_data(param, connection, income_Code)
+            _process_accumulated_data(param, connection, income_Code)
 
         # process Q2 or Q3 or Q4 現金流量表
         if param[2] in ['2', '3', '4']:
             cash_Code = dfs[2]['Code'].to_list()
-            process_accumulated_data(param, connection, cash_Code)
+            _process_accumulated_data(param, connection, cash_Code)
 
     # if any error occur, drop corrupted table
     except:
@@ -124,7 +124,7 @@ def parse_func(param, connection):
     print('----------------------------------------------------------')
 
 
-def parse_func_helper(param, connection):
+def _parse_func_helper(param, connection):
     ''' 
         parsing core function (2019 ~)
 
@@ -217,7 +217,7 @@ def parse_func_helper(param, connection):
 
     return dfs
 
-def parse_func_helper_2013(param, connection):
+def _parse_func_helper_2013(param, connection):
     ''' 
         parsing core function (2013 ~ 2018)
 
@@ -296,7 +296,7 @@ def parse_func_helper_2013(param, connection):
     cursor.execute(query)
     return dfs
 
-def process_accumulated_data(param, connection, Codes):
+def _process_accumulated_data(param, connection, Codes):
     '''
         Given codes that have accumulated data, calculate their current data
         ex: Q4 - (Q1+Q2+Q3)
