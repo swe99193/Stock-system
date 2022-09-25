@@ -6,36 +6,53 @@ from io import StringIO
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
+# [資產負債表, 損益表, 現金流量表]
 Title_to_Code = [
 {
-    # '權益總計', '權益總額' refer to the same index, but used interchangeably in different years
-    # '資產總計', '資產總額' 
-    # '其他非流動負債', '其他非流動負債合計'
-    # '存貨', '存貨合計'
-    # '無形資產', '無形資產合計'
-    '權益總計': '3XXX', 
-    '權益總額': '3XXX', 
+    '應收帳款淨額': '1170', 
+
     '流動資產合計': '11XX', 
-    '流動負債合計': '21XX', 
-    '非流動負債合計': '25XX', 
-    '其他非流動負債': '2600',
-    '其他非流動負債合計': '2600', 
+
+    '存貨': '130X',
+
+    '存貨合計': '130X',
+
+    '非流動資產合計': '15XX',
+
+    '不動產、廠房及設備': '1600',
+    '不動產、廠房及設備合計': '1600',
+
+    '無形資產': '1780', 
+    '無形資產合計': '1780',
+
+    '其他非流動資產': '1900',
+    '其他非流動資產合計': '1900',
+
     '資產總計': '1XXX', 
     '資產總額': '1XXX', 
-    '存貨': '130X',
-    '存貨合計': '130X',
-    '應收帳款淨額': '1170', 
-    '無形資產': '1780',
-    '無形資產合計': '1780'
+
+    '流動負債合計': '21XX', 
+
+    '非流動負債合計': '25XX', 
+
+    '其他非流動負債': '2600',
+    '其他非流動負債合計': '2600', 
+    
+    '特別股股本': '3120', 
+    
+    '股本合計': '3100', 
+
+    '權益總計': '3XXX', 
+    '權益總額': '3XXX'
 },
 
 {
-    '營業毛利（毛損）': '5900', 
     '營業收入合計': '4000', 
+    '營業成本合計': '5000',
+    '營業毛利（毛損）': '5900', 
     '營業利益（損失）': '6900', 
     '繼續營業單位稅前淨利（淨損）': '7900', # 出現在損益表、現金流量表
-    '本期淨利（淨損）': '8200', 
-    '營業成本合計': '5000'
+    '本期淨利（淨損）': '8200' 
 },
 
 {
@@ -56,6 +73,8 @@ def parse_func(param, connection):
 
         Note: If you call this function with the same parameters again, the original data will be replaced by new data.
 
+        Note: company id should NOT be provided with ".TW" suffix
+
         Note: 損益表
         1. for Q4, we will get the accumulated data, so we should subtract it from Q1 + Q2 + Q3 data
 
@@ -65,52 +84,51 @@ def parse_func(param, connection):
 
     cursor = connection.cursor()
     table = table_name(param)
-    
+    id, Year, Quarter = param
 
     ####### dependency check #######
     table_list = set()
-    ls_table_query = "SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';"
+    ls_table_query = 'SELECT name FROM sqlite_schema WHERE type ="table" AND name NOT LIKE "sqlite_%";'
     for row in cursor.execute(ls_table_query):  table_list.add(row[0])
 
     # dependency: all previous seasons in the same year
     # ex: Q4 dependency: Q1, Q2, Q3
     # check order: Q1 -> Q2 -> Q3
-    if param[2] in ['2', '3', '4']:
-        L = int(param[2])
+    if Quarter in ['2', '3', '4']:
+        L = int(Quarter)
         for season in range(1, L):
-            new_param = param[0], param[1], str(season)
+            new_param = id, Year, str(season)
             if table_name(new_param) not in table_list:
                 print(f'\nMissing required dependency: Q{season}')
                 print(f'Start parsing dependencies...')
                 parse_func(new_param, connection)
         
     print('----------------------------------------------------------')
-    
+    print(f'Parsing financial info of {id}, {Year}, {Quarter}')
     ####### process target #######
     # transaction occur
     try:
         # year 2019 ~
-        if int(param[1]) >= 2019:
+        if int(Year) >= 2019:
             dfs = _parse_func_helper(param, connection)
         # year 2013 ~ 2018
         else:
             dfs = _parse_func_helper_2013(param, connection)
 
         ####### Post-process target #######
-
         # process Q4 損益表
-        if param[2] == '4':
+        if Quarter == '4':
             income_Code = dfs[1]['Code'].to_list()
             _process_accumulated_data(param, connection, income_Code)
 
         # process Q2 or Q3 or Q4 現金流量表
-        if param[2] in ['2', '3', '4']:
+        if Quarter in ['2', '3', '4']:
             cash_Code = dfs[2]['Code'].to_list()
             _process_accumulated_data(param, connection, cash_Code)
 
     # if any error occur, drop corrupted table
     except:
-        query = f"DROP TABLE {table};"
+        query = f'DROP TABLE {table};'
         print('[QUERY] ' + query) 
         cursor.execute(query)
         connection.commit()
@@ -133,7 +151,8 @@ def _parse_func_helper(param, connection):
     '''
     cursor = connection.cursor()
     table = table_name(param)
-    url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={param[0]}&SYEAR={param[1]}&SSEASON={param[2]}&REPORT_ID=C'
+    id, Year, Quarter = param
+    url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={id}&SYEAR={Year}&SSEASON={Quarter}&REPORT_ID=C'
 
 
     # create current table (sqlite)
@@ -146,7 +165,7 @@ def _parse_func_helper(param, connection):
     cursor.execute(query)
 
     # clear data (sqlite)
-    query = f"DELETE FROM {table};"
+    query = f'DELETE FROM {table};'
     print('[QUERY] ' + query)
     cursor.execute(query)
 
@@ -190,7 +209,7 @@ def _parse_func_helper(param, connection):
         
         # load data into sqlite
         data = dfs[i].values.tolist()
-        query = "INSERT INTO " + table + " VALUES (?, ?, ?);"
+        query = 'INSERT INTO ' + table + ' VALUES (?, ?, ?);'
         cursor.executemany(query, data)
 
         # dfs[i].to_csv(path, encoding='utf-8', index=False)
@@ -198,7 +217,7 @@ def _parse_func_helper(param, connection):
 
     # clear duplicate rows
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
-    cursor.execute(f"DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)")
+    cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
     # rebuild a new table with primary key
     new_table =  "d" + table
@@ -208,11 +227,11 @@ def _parse_func_helper(param, connection):
                 Money BIGINT \
                 );'
     cursor.execute(query)
-    query = f"INSERT INTO {new_table} SELECT * FROM {table};"
+    query = f'INSERT INTO {new_table} SELECT * FROM {table};'
     cursor.execute(query)
-    query = f"DROP TABLE {table};"
+    query = f'DROP TABLE {table};'
     cursor.execute(query)
-    query = f"ALTER TABLE {new_table} RENAME TO {table};"
+    query = f'ALTER TABLE {new_table} RENAME TO {table};'
     cursor.execute(query)
 
     return dfs
@@ -226,7 +245,8 @@ def _parse_func_helper_2013(param, connection):
     '''
     cursor = connection.cursor()
     table = table_name(param)
-    url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={param[0]}&SYEAR={param[1]}&SSEASON={param[2]}&REPORT_ID=C'
+    id, Year, Quarter = param
+    url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={id}&SYEAR={Year}&SSEASON={Quarter}&REPORT_ID=C'
 
     # create current table (sqlite)
     query = 'CREATE TABLE IF NOT EXISTS ' + table + ' (\
@@ -237,7 +257,7 @@ def _parse_func_helper_2013(param, connection):
     cursor.execute(query)
 
     # clear data (sqlite)
-    query = f"DELETE FROM {table};"
+    query = f'DELETE FROM {table};'
     print('[QUERY] ' + query)
     cursor.execute(query)
 
@@ -272,14 +292,14 @@ def _parse_func_helper_2013(param, connection):
 
         # load data into sqlite
         data = dfs[i].values.tolist()
-        query = "INSERT INTO " + table + " VALUES (?, ?);"
+        query = 'INSERT INTO ' + table + ' VALUES (?, ?);'
         cursor.executemany(query, data)
 
         # dfs[i].to_csv(path, encoding='utf-8', index=False)
 
     # clear duplicate rows
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
-    cursor.execute(f"DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)")
+    cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
     # rebuild a new table with primary key
     new_table =  "d" + table
@@ -288,11 +308,11 @@ def _parse_func_helper_2013(param, connection):
                 Money BIGINT \
                 );'
     cursor.execute(query)
-    query = f"INSERT INTO {new_table} SELECT * FROM {table};"
+    query = f'INSERT INTO {new_table} SELECT * FROM {table};'
     cursor.execute(query)
-    query = f"DROP TABLE {table};"
+    query = f'DROP TABLE {table};'
     cursor.execute(query)
-    query = f"ALTER TABLE {new_table} RENAME TO {table};"
+    query = f'ALTER TABLE {new_table} RENAME TO {table};'
     cursor.execute(query)
     return dfs
 
@@ -307,23 +327,24 @@ def _process_accumulated_data(param, connection, Codes):
     '''
     cursor = connection.cursor()
     table = table_name(param)
-    prev_param = [param[0], param[1], None]
-    L = int(param[2])
+    id, Year, Quarter = param
+    prev_param = [id, Year, None]
+    L = int(Quarter)
 
     for code in Codes:
-        cur_q = f"SELECT Money FROM {table} WHERE Code = '{code}'"
+        cur_q = f'SELECT Money FROM {table} WHERE Code = "{code}"'
         tmp = cur_val = cursor.execute(cur_q).fetchone()[0]
 
         for season in range(1, L):
             prev_param[2] = str(season)
             prev_table = table_name(prev_param)
 
-            prev_q = f"SELECT Money FROM {prev_table} WHERE Code = '{code}'"
+            prev_q = f'SELECT Money FROM {prev_table} WHERE Code = "{code}"'
             prev_val = cursor.execute(prev_q).fetchone()
 
             if prev_val is not None:
                 cur_val -= prev_val[0]
     
         if cur_val != tmp:
-            query = f"UPDATE {table} SET Money={cur_val} WHERE Code = '{code}'"
+            query = f'UPDATE {table} SET Money={cur_val} WHERE Code = "{code}"'
             cursor.execute(query)
