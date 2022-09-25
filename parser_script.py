@@ -1,7 +1,11 @@
 import os
 import subprocess
 import sqlite3
-import automated_parser_lib
+import automated_parser_2019
+import automated_parser_2013
+import automated_parser_2009
+import financial_info_parser_lib
+import ratio_generator_lib
 from time import sleep
 
 root_path = 'ratios'
@@ -18,7 +22,7 @@ def parse(param, connection):
         # else:
         #     raise Exception('year value not supported')
         if 2013 <= year:
-            parse_func = automated_parser_lib.parse_func
+            parse_func = financial_info_parser_lib.parse_func
         elif 2009 <= year <= 2012:
             print('year value not supported, in dev process')
             return
@@ -32,6 +36,8 @@ def parse(param, connection):
         parse(param, connection)
         
 
+def generate_ratio(param, connection):
+    ratio_generator_lib.generate_ratios(param, connection)
 
 
 def main():
@@ -58,12 +64,15 @@ def main():
 
     # for year in range(2019, 2023):
         # parse(('2330', str(year), '4'), connection)
-    for year in range(2013, 2022):
+    
+    for year in range(2013, 2014):
         for season in range(1,5):
             parse(('2330', str(year), str(season)), connection)
+            # generate_ratio(('2330', str(year), str(season)), connection)
+
     # parse(('2330', str('2013'), '2'), connection)
     
-    print('\n---------------- Parsing Complete ----------------')
+    print('\n---------------- Complete ----------------')
     connection.close()
     return
 
