@@ -7,69 +7,108 @@ from io import StringIO
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
 # [資產負債表, 損益表, 現金流量表]
-Title_to_Code = [
+Standard_Code_mapping = [
 {
+    '1170': '1170', 
     '應收帳款淨額': '1170', 
+    '應收款項－淨額': '1170', # 金融公司
+    '13000': '1170', # 金融公司
 
+    '11XX': '11XX', 
     '流動資產合計': '11XX', 
 
+    '130X': '130X',
     '存貨': '130X',
-
     '存貨合計': '130X',
 
+    '15XX': '15XX',
     '非流動資產合計': '15XX',
 
+    '1600': '1600',
     '不動產、廠房及設備': '1600',
     '不動產、廠房及設備合計': '1600',
 
+    '1780': '1780', 
     '無形資產': '1780', 
     '無形資產合計': '1780',
+    '無形資產－淨額': '1780', # 金融公司
+    '19000': '1780', # 金融公司
 
+    '1900': '1900',
     '其他非流動資產': '1900',
     '其他非流動資產合計': '1900',
 
-    '資產總計': '1XXX', 
-    '資產總額': '1XXX', 
+    '1XXX': '1XXX', # 一般公司
+    '資產總計': '1XXX', # 一般公司 金融公司 
+    '資產總額': '1XXX', # 一般公司 金融公司
+    '19999': '1XXX',  # 金融公司
 
+    '21XX': '21XX', 
     '流動負債合計': '21XX', 
 
+    '25XX': '25XX', 
     '非流動負債合計': '25XX', 
 
+    '2600': '2600',
     '其他非流動負債': '2600',
     '其他非流動負債合計': '2600', 
     
-    '特別股股本': '3120', 
+    '3120': '3120', # 少數公司有的資訊
+    '特別股股本': '3120', # 少數公司有的資訊
     
-    '股本合計': '3100', 
+    '3100': '3100', # 一般公司
+    '股本合計': '3100', # 一般公司 金融公司
+    '31100': '3100', # 金融公司
 
-    '權益總計': '3XXX', 
-    '權益總額': '3XXX'
+    '3XXX': '3XXX', # 一般公司
+    '權益總計': '3XXX', # 一般公司 金融公司
+    '權益總額': '3XXX', # 一般公司 金融公司
+    '39999': '3XXX' # 金融公司
 },
 
 {
+    '4000': '4000', 
     '營業收入合計': '4000', 
+
+    '5000': '5000',
     '營業成本合計': '5000',
+
+    '5900': '5900', 
     '營業毛利（毛損）': '5900', 
+
+    '6900': '6900', 
     '營業利益（損失）': '6900', 
-    '繼續營業單位稅前淨利（淨損）': '7900', # 出現在損益表、現金流量表
-    '本期淨利（淨損）': '8200' 
+
+    '7900': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
+    '繼續營業單位稅前淨利（淨損）': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
+    '繼續營業單位稅前損益': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
+    '61000': '7900', # 金融公司
+
+    '8200': '8200' , # 一般公司 金融公司
+    '本期淨利（淨損）': '8200' ,# 一般公司 金融公司
+    '69000': '8200' # 金融公司
 },
 
-{
-    '折舊費用': 'A20100', 
-    '攤銷費用': 'A20200', 
-    '營業活動之淨現金流入（流出）': 'AAAA', 
-    '取得不動產、廠房及設備': 'B02700'
+{   # 金融公司的現金流量表，代號與名稱與一般公司相同
+    # '折舊費用': 'A20100', 
+    # '攤銷費用': 'A20200', ˋ
+    'AAAA': 'AAAA',   # 一般公司 金融公司
+    '營業活動之淨現金流入（流出）': 'AAAA',   # 一般公司 金融公司
+    
+    'B02700': 'B02700',  # 一般公司 金融公司
+    '取得不動產、廠房及設備': 'B02700',  # 一般公司 金融公司
+    '取得不動產及設備': 'B02700'  # 一般公司 金融公司
 }]
+
 
 def parse_func(param, connection):
     ''' 
         Parse data of a season and store it into sqlite table.
-        Required dependency data will be parsed if absent.
-        Data dependency: Q4 -> Q3 -> Q2 -> Q1
 
         param (str, str, str): (stock id, year, season) 
         connection: sqlite connection
+        
+        Note: Data dependency: Q4 -> Q3 -> Q2 -> Q1
 
         Note: If you call this function with the same parameters again, the original data will be replaced by new data.
 
@@ -86,22 +125,22 @@ def parse_func(param, connection):
     table = table_name(param)
     id, Year, Quarter = param
 
-    ####### dependency check #######
-    table_list = set()
-    ls_table_query = 'SELECT name FROM sqlite_schema WHERE type ="table" AND name NOT LIKE "sqlite_%";'
-    for row in cursor.execute(ls_table_query):  table_list.add(row[0])
+    # ####### dependency check #######
+    # table_list = set()
+    # ls_table_query = 'SELECT name FROM sqlite_schema WHERE type ="table" AND name NOT LIKE "sqlite_%";'
+    # for row in cursor.execute(ls_table_query):  table_list.add(row[0])
 
-    # dependency: all previous seasons in the same year
-    # ex: Q4 dependency: Q1, Q2, Q3
-    # check order: Q1 -> Q2 -> Q3
-    if Quarter in ['2', '3', '4']:
-        L = int(Quarter)
-        for season in range(1, L):
-            new_param = id, Year, str(season)
-            if table_name(new_param) not in table_list:
-                print(f'\nMissing required dependency: Q{season}')
-                print(f'Start parsing dependencies...')
-                parse_func(new_param, connection)
+    # # dependency: all previous seasons in the same year
+    # # ex: Q4 dependency: Q1, Q2, Q3
+    # # check order: Q1 -> Q2 -> Q3
+    # if Quarter in ['2', '3', '4']:
+    #     L = int(Quarter)
+    #     for season in range(1, L):
+    #         new_param = id, Year, str(season)
+    #         if table_name(new_param) not in table_list:
+    #             print(f'\nMissing required dependency: Q{season}')
+    #             print(f'Start parsing dependencies...')
+    #             parse_func(new_param, connection)
         
     print('----------------------------------------------------------')
     print(f'Parsing financial info of {id}, {Year}, {Quarter}')
@@ -128,11 +167,11 @@ def parse_func(param, connection):
 
     # if any error occur, drop corrupted table
     except:
+        print(f'Fail to parse table: {table}')
         query = f'DROP TABLE {table};'
         print('[QUERY] ' + query) 
         cursor.execute(query)
         connection.commit()
-        print(f'Fail to parse table: {table}')
         print('----------------------------------------------------------')
         raise
     
@@ -206,6 +245,10 @@ def _parse_func_helper(param, connection):
         
         # convert "Money" to numeric
         dfs[i]['Money'] = pd.to_numeric(dfs[i]['Money'])
+
+        # convert to standardized Code（financial companies 金融公司)
+        for key, val in Standard_Code_mapping[i].items():
+            dfs[i].loc[dfs[i]['Code'] == key , 'Code'] = val
         
         # load data into sqlite
         data = dfs[i].values.tolist()
@@ -219,20 +262,18 @@ def _parse_func_helper(param, connection):
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
     cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
-    # rebuild a new table with primary key
-    new_table =  "d" + table
-    query = 'CREATE TABLE ' + new_table + ' (\
-                Code TEXT PRIMARY KEY, \
-                Title TEXT, \
-                Money BIGINT \
-                );'
-    cursor.execute(query)
-    query = f'INSERT INTO {new_table} SELECT * FROM {table};'
-    cursor.execute(query)
-    query = f'DROP TABLE {table};'
-    cursor.execute(query)
-    query = f'ALTER TABLE {new_table} RENAME TO {table};'
-    cursor.execute(query)
+    # # rebuild a new table with primary key
+    # new_table =  "d" + table
+    # query = 'CREATE TABLE ' + new_table + ' (\
+    #             Code TEXT PRIMARY KEY, \
+    #             Title TEXT, \
+    #             Money BIGINT \
+    #             );'
+    # cursor.execute(query)
+    # cursor.execute(f'INSERT INTO {new_table} SELECT * FROM {table};')
+    # cursor.execute(f'DROP TABLE {table};')
+    # cursor.execute(f'ALTER TABLE {new_table} RENAME TO {table};')
+    # print("[log] add Primary key: Code")
 
     return dfs
 
@@ -286,8 +327,7 @@ def _parse_func_helper_2013(param, connection):
         dfs[i].dropna(subset='Money', inplace = True)
 
         # change Chinese Title to Code
-        pairs = Title_to_Code[i]  # be careful with the index
-        for key, val in pairs.items():
+        for key, val in Standard_Code_mapping[i].items():
             dfs[i].loc[dfs[i]['Code'] == key , 'Code'] = val
 
         # load data into sqlite
@@ -301,19 +341,18 @@ def _parse_func_helper_2013(param, connection):
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
     cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
-    # rebuild a new table with primary key
-    new_table =  "d" + table
-    query = 'CREATE TABLE ' + new_table + ' (\
-                Code TEXT PRIMARY KEY, \
-                Money BIGINT \
-                );'
-    cursor.execute(query)
-    query = f'INSERT INTO {new_table} SELECT * FROM {table};'
-    cursor.execute(query)
-    query = f'DROP TABLE {table};'
-    cursor.execute(query)
-    query = f'ALTER TABLE {new_table} RENAME TO {table};'
-    cursor.execute(query)
+    # # rebuild a new table with primary key
+    # new_table =  "d" + table
+    # query = 'CREATE TABLE ' + new_table + ' (\
+    #             Code TEXT PRIMARY KEY, \
+    #             Money BIGINT \
+    #             );'
+    # cursor.execute(query)
+    # cursor.execute(f'INSERT INTO {new_table} SELECT * FROM {table};')
+    # cursor.execute(f'DROP TABLE {table};')
+    # cursor.execute(f'ALTER TABLE {new_table} RENAME TO {table};')
+    # print("[log] add Primary key: Code")
+
     return dfs
 
 def _process_accumulated_data(param, connection, Codes):

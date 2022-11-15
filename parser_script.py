@@ -65,10 +65,10 @@ def main():
     # for year in range(2019, 2023):
         # parse(('2330', str(year), '4'), connection)
     
-    for year in range(2013, 2014):
+    for year in range(2018, 2020):
         for season in range(1,5):
-            parse(('2330', str(year), str(season)), connection)
-            # generate_ratio(('2330', str(year), str(season)), connection)
+            parse(('2887', str(year), str(season)), connection)
+            ratio_generator_lib.generate_final_data(('2887', str(year), str(season)), connection)
 
     # parse(('2330', str('2013'), '2'), connection)
     
