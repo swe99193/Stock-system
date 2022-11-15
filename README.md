@@ -1,2 +1,2 @@
 # Stock-system
- DSCLab stock system
+ DCSLab stock system
