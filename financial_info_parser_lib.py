@@ -3,19 +3,29 @@ import pandas as pd
 import subprocess
 import requests
 from io import StringIO
+from CustomException import RequestError
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
+
+INPUT_DF = pd.read_csv('target_company.csv') # target company ids
+
 
 # [資產負債表, 損益表, 現金流量表]
 Standard_Code_mapping = [
 {
     '1170': '1170', 
     '應收帳款淨額': '1170', 
-    '應收款項－淨額': '1170', # 金融公司
     '13000': '1170', # 金融公司
+    '應收款項－淨額': '1170', # 金融公司
+    # '應收款項-淨額': '1170', # 金融公司 # before 2013
+
+    # 當作應收帳款 (非常態)
+    # '應收票據淨額': '1170',
+    # '1150': '1170', 
 
     '11XX': '11XX', 
     '流動資產合計': '11XX', 
+    '流動資產': '11XX',
 
     '130X': '130X',
     '存貨': '130X',
@@ -27,24 +37,30 @@ Standard_Code_mapping = [
     '1600': '1600',
     '不動產、廠房及設備': '1600',
     '不動產、廠房及設備合計': '1600',
+    # '固定資產成本合計': '1600',  # before 2013
+    # '固定資產淨額': '1600',  # before 2013
 
     '1780': '1780', 
     '無形資產': '1780', 
     '無形資產合計': '1780',
+    '無形資產-淨額': '1780', # 金融公司
     '無形資產－淨額': '1780', # 金融公司
-    '19000': '1780', # 金融公司
+    '19000': '1780', # 金融公司 
 
     '1900': '1900',
     '其他非流動資產': '1900',
     '其他非流動資產合計': '1900',
+    # '其他資產合計': '1900', # before 2013
 
     '1XXX': '1XXX', # 一般公司
-    '資產總計': '1XXX', # 一般公司 金融公司 
-    '資產總額': '1XXX', # 一般公司 金融公司
+    '資產總計': '1XXX', 
+    '資產總額': '1XXX',
     '19999': '1XXX',  # 金融公司
+    '10000': '1XXX',  # 金融公司, (2801.TW)
 
     '21XX': '21XX', 
     '流動負債合計': '21XX', 
+    '流動負債': '21XX',
 
     '25XX': '25XX', 
     '非流動負債合計': '25XX', 
@@ -52,9 +68,11 @@ Standard_Code_mapping = [
     '2600': '2600',
     '其他非流動負債': '2600',
     '其他非流動負債合計': '2600', 
+    # '其他負債合計': '2600',  # before 2013
     
-    '3120': '3120', # 少數公司有的資訊
-    '特別股股本': '3120', # 少數公司有的資訊
+    # Note: 少數公司有的資訊
+    '3120': '3120',
+    '特別股股本': '3120',
     
     '3100': '3100', # 一般公司
     '股本合計': '3100', # 一般公司 金融公司
@@ -63,7 +81,9 @@ Standard_Code_mapping = [
     '3XXX': '3XXX', # 一般公司
     '權益總計': '3XXX', # 一般公司 金融公司
     '權益總額': '3XXX', # 一般公司 金融公司
-    '39999': '3XXX' # 金融公司
+    '39999': '3XXX', # 金融公司
+    '30000': '3XXX', # 金融公司 (2801.TW)
+    '股東權益總計': '3XXX'
 },
 
 {
@@ -75,29 +95,49 @@ Standard_Code_mapping = [
 
     '5900': '5900', 
     '營業毛利（毛損）': '5900', 
+    # '營業毛利(毛損)': '5900', # before 2013
 
     '6900': '6900', 
     '營業利益（損失）': '6900', 
+    # '營業淨利(淨損)': '6900', # before 2013
 
-    '7900': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
+    # 稅前淨利
+    # Note: 同時出現在損益表、現金流量表
+    '7900': '7900', # 一般公司 金融公司  
     '繼續營業單位稅前淨利（淨損）': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
     '繼續營業單位稅前損益': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 
-    '61000': '7900', # 金融公司
+    '64001': '7900', # 金融公司 (2801.TW)
+    # '繼續營業單位稅前合併淨利（淨損）': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 # before 2013
+    # '繼續營業單位稅前淨利(淨損)': '7900', # 一般公司 金融公司 # 出現在損益表、現金流量表 # before 2013
 
+    # 稅後淨利
     '8200': '8200' , # 一般公司 金融公司
-    '本期淨利（淨損）': '8200' ,# 一般公司 金融公司
-    '69000': '8200' # 金融公司
+    '本期淨利（淨損）': '8200',
+    '69000': '8200', # 金融公司
+    '64000': '8200', # 金融公司 (2801.TW)
+    '本期稅後淨利（淨損）': '8200'
+    # '繼續營業單位稅後合併淨利(淨損)': '8200', # before 2013
+    # '繼續營業單位淨利(淨損)': '8200', # before 2013
+
 },
 
 {   # 金融公司的現金流量表，代號與名稱與一般公司相同
+
+    # 金融公司 代號 61001 對應的欄位不一致，改用A0010
+    'A00010': '7900', # 金融公司
+
     # '折舊費用': 'A20100', 
     # '攤銷費用': 'A20200', ˋ
     'AAAA': 'AAAA',   # 一般公司 金融公司
-    '營業活動之淨現金流入（流出）': 'AAAA',   # 一般公司 金融公司
+    '營業活動之淨現金流入（流出）': 'AAAA',
+    # '營業活動之淨現金流入(流出)': 'AAAA', # before 2013
+    # '營業活動之淨現金流入': 'AAAA', # before 2013
     
-    'B02700': 'B02700',  # 一般公司 金融公司
-    '取得不動產、廠房及設備': 'B02700',  # 一般公司 金融公司
-    '取得不動產及設備': 'B02700'  # 一般公司 金融公司
+    'B02700': 'B02700', # 一般公司 金融公司
+    '取得不動產、廠房及設備': 'B02700', 
+    '取得不動產及設備': 'B02700'
+    # '購置固定資產': 'B02700', # before 2013
+    # '購置資產': 'B02700' # before 2013
 }]
 
 
@@ -143,20 +183,22 @@ def parse_func(param, connection):
     #             parse_func(new_param, connection)
         
     print('----------------------------------------------------------')
-    print(f'Parsing financial info of {id}, {Year}, {Quarter}')
+    print(f'[TASK] Parsing financial info of {id}, {Year}, {Quarter}')
     ####### process target #######
-    # transaction occur
+    # transaction starts
     try:
         # year 2019 ~
         if int(Year) >= 2019:
             dfs = _parse_func_helper(param, connection)
         # year 2013 ~ 2018
-        else:
+        elif int(Year) >= 2013:
             dfs = _parse_func_helper_2013(param, connection)
+        else:
+            dfs = _parse_func_helper_before_2013(param, connection)
 
         ####### Post-process target #######
-        # process Q4 損益表
-        if Quarter == '4':
+        # process Q4 損益表, 2013之前的損益表為累計資料
+        if Quarter == '4' or (int(Year) < 2013 and Quarter in ['2', '3', '4']):
             income_Code = dfs[1]['Code'].to_list()
             _process_accumulated_data(param, connection, income_Code)
 
@@ -167,17 +209,16 @@ def parse_func(param, connection):
 
     # if any error occur, drop corrupted table
     except:
-        print(f'Fail to parse table: {table}')
-        query = f'DROP TABLE {table};'
-        print('[QUERY] ' + query) 
-        cursor.execute(query)
-        connection.commit()
+        # query = f'DROP TABLE {table};'
+        # print('[QUERY] ' + query) 
+        # cursor.execute(query)
+        # connection.commit()
         print('----------------------------------------------------------')
         raise
     
     # if everything is successful, commit all changes to current table at once
     connection.commit()
-    print(f'Complete table: {table}')
+    print(f'[SUCCESS] Complete table: {table}')
     print('----------------------------------------------------------')
 
 
@@ -186,7 +227,7 @@ def _parse_func_helper(param, connection):
         parsing core function (2019 ~)
 
         1. insert parsed data (sqlite)
-        2. return pandas table
+        2. return pandas table [資產負債表, 損益表, 現金流量表]
     '''
     cursor = connection.cursor()
     table = table_name(param)
@@ -216,8 +257,18 @@ def _parse_func_helper(param, connection):
     try:
         dfs = pd.read_html(StringIO(res.text))[0:3]
     except ValueError:
-        print('Error: data not available...')
-        raise
+        print('[Error]: data not available..., could be due to too many request')
+        raise RequestError
+
+    try:
+        # must have three sheets
+        for i in range(3):
+            # must have three columns
+            if len(dfs[i].columns) < 3:
+                raise ValueError
+    except (ValueError, IndexError):
+        print('[Error]: data not available..., could be due to too many request')
+        raise RequestError
 
     # dfs[0]    資產負債表
     # dfs[1]    損益表
@@ -282,7 +333,7 @@ def _parse_func_helper_2013(param, connection):
         parsing core function (2013 ~ 2018)
 
         1. insert parsed data (sqlite)
-        2. return pandas table
+        2. return pandas table, [資產負債表, 損益表, 現金流量表]
     '''
     cursor = connection.cursor()
     table = table_name(param)
@@ -310,9 +361,18 @@ def _parse_func_helper_2013(param, connection):
     try:
         dfs = pd.read_html(StringIO(res.text))[1:4]
     except ValueError:
-        print('Error: data not available...')
-        raise
+        print('[Error]: data not available..., could be due to too many request')
+        raise RequestError
 
+    try:
+        # must have three sheets
+        for i in range(3):
+            # must have three columns
+            if len(dfs[i].columns) < 2:
+                raise ValueError
+    except (ValueError, IndexError):
+        print('[Error]: data not available..., could be due to too many request')
+        raise RequestError
     # dfs[1]    資產負債表
     # dfs[2]    損益表
     # dfs[3]    現金流量表
@@ -355,10 +415,164 @@ def _parse_func_helper_2013(param, connection):
 
     return dfs
 
+
+def _parse_func_helper_before_2013(param, connection):
+    ''' 
+        parsing core function (~2012)
+
+        1. insert parsed data (sqlite)
+        2. return pandas table, [資產負債表, 損益表, 現金流量表]
+    '''
+    cursor = connection.cursor()
+    table = table_name(param)
+    id, Year, Quarter = param
+    Year = str(int(Year) - 1911)    # 西元 -> 民國
+    sector = INPUT_DF[INPUT_DF['CO_ID'] == id+'.TW']['Sector'].values[0]
+
+    url = [ 'https://mops.twse.com.tw/mops/web/ajax_t05st33',  # 資產表
+            'https://mops.twse.com.tw/mops/web/ajax_t05st34',  # 損益表
+            'https://mops.twse.com.tw/mops/web/ajax_t05st39'  # 現金表
+    ]
+
+    # create current table (sqlite)
+    query = 'CREATE TABLE IF NOT EXISTS ' + table + ' (\
+                Code TEXT, \
+                Money BIGINT \
+                );'
+    print('[QUERY] ' + query) 
+    cursor.execute(query)
+
+    # clear data (sqlite)
+    query = f'DELETE FROM {table};'
+    print('[QUERY] ' + query)
+    cursor.execute(query)
+
+    # check if this is a financial company
+    is_fin_co = (sector == 'Financial Services')
+
+    final_dfs = []
+
+    # save three financial statements
+    for i in range(3):
+        payload = {
+            'co_id': id,
+            'year': Year,
+            'season': '0' + Quarter,
+            'firstin': '1',
+            'check2858': 'Y',
+            # 'checkbtn': '',
+            # 'step': '1',
+            # 'queryName': 'co_id',
+            # 'TYPEK2': '',
+            # 'inpuType': 'co_id',
+            # 'off': '1',
+            # 'year': 'Y',
+            # 'keyword4': '',
+            # 'isnew': 'false',
+            # 'code1': '',
+            # 'encodeURIComponent': '1',
+            # 'TYPEK': 'sii'
+        }
+
+        try:
+            print(f'parsing: {url[i]}\n')
+            res = requests.post(url[i], data=payload)
+            dfs = pd.read_html(StringIO(res.text))
+        except ValueError:
+            print('[Error]: data not available..., could be due to too many request')
+            raise RequestError
+        
+        if i != 2:  # 資產表, 損益表
+            # table is located at index 2
+            # drop useless rows, columns
+            df = dfs[-1].iloc[4:, 0:2]
+            
+            df.columns = ['Code', 'Money']
+
+            # drop useless rows (that has blank in "Money")
+            df.dropna(subset='Money', inplace = True)
+
+            # remove space
+            df['Code'] = df['Code'].str.replace(' ','', regex=True)
+
+            df['Money'] = pd.to_numeric(df['Money'])
+
+            # change Chinese Title to Standard Code
+            for key, val in Standard_Code_mapping[i].items():
+                df.loc[df['Code'] == key , 'Code'] = val
+            
+            if i == 0:  # only 資產表
+                if not is_fin_co: # 一般公司，NOT 金融公司
+                    query_money = lambda key: df.loc[df['Code'] == key , 'Money'].values[0]
+                    # 非流動資產合計: 15XX
+                    amount = query_money('1XXX') - query_money('11XX')
+                    row = pd.DataFrame({'Code':['15XX'], 'Money': [amount]})
+                    df = pd.concat([df, row], ignore_index=True)
+
+                    # 非流動負債合計: 25XX
+                    amount = query_money('負債總計') - query_money('21XX')
+                    row = pd.DataFrame({'Code':['25XX'], 'Money': [amount]})
+                    df = pd.concat([df, row], ignore_index=True)
+
+                # 股本: 3100
+                if len(df[df['Code'] == '股本']) == 0:
+                    # 股本 = 普通股股本
+                    df.loc[df['Code'] == '普通股股本', 'Code'] = '3100'
+
+        else:   # 現金表
+            # Note: 現金表是 raw text, not table, 因此利用string split，再linear scan
+
+            tmp = dfs[-1].values[0][0].replace('\u3000', '')    # remove Ideographic space
+            tmp = tmp.split(' ')
+
+            tmp_dict = {'Code':[], 'Money': []}
+
+            for i in range(len(tmp)):
+                # find target values
+                if tmp[i] in Standard_Code_mapping[2]:
+                    code = Standard_Code_mapping[2][tmp[i]]
+                    
+                    if len(tmp[i+1]) == 1:  # handle bad formatted data
+                        value = tmp[i+2]
+                    else:
+                        value = tmp[i+1]
+
+                    if '(' in value or ')' in value:
+                        value = '-' + value # negative
+
+                    value = value.replace(',', '')
+                    value = value.replace('(', '')
+                    value = value.replace(')', '')
+                    value = int(value) # to numeric value
+
+                    tmp_dict['Code'].append(code)
+                    tmp_dict['Money'].append(value)
+                    
+                    if code == 'B02700':   # handle duplicates
+                        break
+            df = pd.DataFrame(tmp_dict) # build df
+
+        final_dfs.append(df)
+
+        # load data into sqlite
+        data = df.values.tolist()
+        query = 'INSERT INTO ' + table + ' VALUES (?, ?);'
+        cursor.executemany(query, data)
+
+        # dfs[i].to_csv(path, encoding='utf-8', index=False)
+
+    # clear duplicate rows
+    # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
+    cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
+
+    return final_dfs
+
 def _process_accumulated_data(param, connection, Codes):
     '''
         Given codes that have accumulated data, calculate their current data
         ex: Q4 - (Q1+Q2+Q3)
+            Q3 - (Q1+Q2)
+            Q2 - (Q1)
 
         Note: if the previous record does not have matching element, do nothing. 
             I suppose all important rows we need will have their counterparts in the previous season.

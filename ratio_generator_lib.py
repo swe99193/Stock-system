@@ -12,7 +12,7 @@ CodeSet = {
         '130X',
         '15XX',
         '1600',
-        '1780',
+        # '1780',   # 不檢查無形資產
         '1900',
         '1XXX',
         '21XX',
@@ -34,7 +34,7 @@ CodeSet = {
 # (for reference)
 FinCompCodeSet = {
         '1170',
-        '1780',
+        # '1780',   # 不檢查無形資產
         '1XXX',
         '3100',
         '3XXX',
@@ -45,6 +45,7 @@ FinCompCodeSet = {
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
+INF = 100000000
 
 # 季的定義是根據財報公佈時間，所以第一季是5月中～8月中左右，我們有再向後取個5天左右避免遇到假日之類的
 Q1_START = ('-05-20', '-05-25')
@@ -58,9 +59,11 @@ Q4_END = ('-07-04', '-07-09')
 
 BASE_ID = '0050.TW' # 大盤 id
 
-INPUT_DF = pd.read_csv('input.csv') # target company ids
+INPUT_DF = pd.read_csv('target_company.csv') # target company ids
 
 FINAL_TABLE = 't_final_data'
+
+f = open(os.path.join('log', "warning.txt"), "a")
 
 
 def _stock_price_helper(id, Y, date_suffix):
@@ -129,7 +132,6 @@ def stock_return_parser(param, connection):
     connection.commit()
 
 
-
 def generate_ratios(param, connection):
     '''
         Note: If you call this function with the same parameters again, the original data will be replaced by new data.
@@ -140,49 +142,101 @@ def generate_ratios(param, connection):
     table = table_name(param)
     id, Year, Quarter = param
     id += '.TW'
+    sector = INPUT_DF[INPUT_DF['CO_ID'] == id]['Sector'].values[0]
 
-    print(f'\nGenerating Ratios of {id}, {Year}, {Quarter}')
+    print(f'\n[TASK] Generating Ratios of {id}, {Year}, {Quarter}')
 
     val = defaultdict(int)
 
-    for code in CodeSet:
+    # Also CHECK if every required column exists before calculating ratios
+    _codeSet = CodeSet if sector != 'Financial Services' else FinCompCodeSet
+    missing_columns = set()
+
+    for code in _codeSet:
         query = f'SELECT Money FROM {table} WHERE Code = "{code}"'
         result = cursor.execute(query).fetchone()
+        # Note: 取第一個result, might get potential wrong value
         
-        # ignore codes that do not exist
-        if result is not None:
+        if result is None:   # skip 特別股股本
+            if code != '3120':
+                missing_columns.add(code)
+        else:
             val[code] = result[0]
 
-    val['Long Term Debt'] = val['25XX'] - val['2600'] if val['25XX']!=0 else 0
-    val['Long Term Investment'] = val['15XX'] - val['1600'] - val['1780'] - val['1900'] if val['15XX']!=0 and val['1600']!=0 else 0
-    val['Shares Outstanding'] = val['3100'] / 10    # 股本/10
-    
-    ratios = defaultdict(int)
+    if missing_columns:
+        warning = f'These columns are missing: {missing_columns}'
 
-    ratios["Current Ratio"] = val['11XX'] / val['21XX'] if val['21XX']!=0 else 0
-    ratios["Long Term Debt to Capital Ratio"] = val['Long Term Debt']/(val['Long_Term_Debt'] + val['3XXX'])
-    ratios["Debt to Equity Ratio"] = val['Long Term Debt'] / val['3XXX'] if val['Long Term Debt']!=0 else 0
-    ratios["Gross Margin"] = val['5900'] / val['4000'] if val['4000']!=0 else 0
-    ratios["Operating Margin"] = val['6900'] / val['4000'] if val['4000']!=0 else 0
-    ratios["Pre-Tax Profit Margin"] = val['7900'] / val['4000'] if val['4000']!=0 else 0
-    ratios["Net Profit Margin"] = val['8200'] / val['4000'] if val['4000']!=0 else 0
-    ratios["Asset Turnover"] = val['4000'] / val['1XXX'] if val['1XXX']!=0 else 0
-    ratios["Inventory Turnover Ratio"] = val['5000'] / val['130X'] if val['130X']!=0 else 0
-    ratios["Receivable Turnover"] = val['4000'] / val['1170'] if val['1170']!=0 else 0
-    ratios["Days Sales In Receivables"] = val['1170'] / val['4000'] * 365 if val['4000']!=0 else 0
-    ratios["ROE"] = val['8200'] / val['3XXX'] if val['3XXX']!=0 else 0
-    ratios["ROTE"] = val['8200'] / (val['3XXX'] - val['1780'] - val['3120']) if val['3XXX']!=0 else 0
-    ratios["ROA"] = val['8200'] / val['1XXX'] if val['1XXX']!=0 else 0
-    ratios["ROI"] = val['8200'] / (val['Long Term Debt'] + val['Long Term Investment']) if val['Long Term Debt']!=0 else 0
-    ratios["Book Value Per Share"] = (val['3XXX'] - val['3120'])/ val['Shares Outstanding'] if val['Shares Outstanding']!=0 else 0
-    ratios["Operating Cash Flow Per Share"] = val['AAAA'] / val['Shares Outstanding'] if val['Shares Outstanding']!=0 else 0
-    ratios["Free Case Flow Per Share"] = (val['AAAA'] - val['B02700']) / val['Shares Outstanding'] if val['Shares Outstanding']!=0 else 0
+        f.write(f'[WARNING] {table}: ' + warning + '\n')
+        print(f'[WARNING] {warning}')
+        
+        while 1:
+            t = input('Continue? [y/n] ')
+            if t == 'y':
+                break
+            elif t == 'n':
+                raise Exception(warning)
+            else:
+                continue
+        
+
+    if sector != 'Financial Services':
+        val['Long Term Debt'] = val['25XX'] - val['2600']
+        val['Long Term Investment'] = val['15XX'] - val['1600'] - val['1780'] - val['1900']
+        val['Shares Outstanding'] = val['3100'] / 10    # 股本/10
+        
+        ratios = defaultdict(int)
+
+        ratios["Current Ratio"] = val['11XX'] / val['21XX']
+        ratios["Long Term Debt to Capital Ratio"] = val['Long Term Debt']/(val['Long_Term_Debt'] + val['3XXX'])
+        ratios["Debt to Equity Ratio"] = val['Long Term Debt'] / val['3XXX']
+        ratios["Gross Margin"] = val['5900'] / val['4000']
+        ratios["Operating Margin"] = val['6900'] / val['4000']
+        ratios["Pre-Tax Profit Margin"] = val['7900'] / val['4000']
+        ratios["Net Profit Margin"] = val['8200'] / val['4000']
+        ratios["Asset Turnover"] = val['4000'] / val['1XXX']
+        ratios["Inventory Turnover Ratio"] = val['5000'] / val['130X']
+        ratios["Receivable Turnover"] = val['4000'] / val['1170']
+        ratios["Days Sales In Receivables"] = val['1170'] / val['4000'] * 365
+        ratios["ROE"] = val['8200'] / val['3XXX']
+        ratios["ROTE"] = val['8200'] / (val['3XXX'] - val['1780'] - val['3120'])
+        ratios["ROA"] = val['8200'] / val['1XXX']
+        ratios["ROI"] = val['8200'] / (val['Long Term Debt'] + val['Long Term Investment'])
+        ratios["Book Value Per Share"] = (val['3XXX'] - val['3120'])/ val['Shares Outstanding']
+        ratios["Operating Cash Flow Per Share"] = val['AAAA'] / val['Shares Outstanding']
+        ratios["Free Case Flow Per Share"] = (val['AAAA'] - val['B02700']) / val['Shares Outstanding']
+
+    else:
+        val['Shares Outstanding'] = val['3100'] / 10    # 股本/10
+        
+        ratios = defaultdict(int)
+
+        ratios["Current Ratio"] = None
+        ratios["Long Term Debt to Capital Ratio"] = None
+        ratios["Debt to Equity Ratio"] = None
+        ratios["Gross Margin"] = None
+        ratios["Operating Margin"] = None
+        ratios["Pre-Tax Profit Margin"] = None
+        ratios["Net Profit Margin"] = None
+        ratios["Asset Turnover"] = None
+        ratios["Inventory Turnover Ratio"] = None
+        ratios["Receivable Turnover"] = None
+        ratios["Days Sales In Receivables"] = None
+        ratios["ROE"] = val['8200'] / val['3XXX']
+        ratios["ROTE"] = val['8200'] / (val['3XXX'] - val['1780'] - val['3120'])
+        ratios["ROA"] = val['8200'] / val['1XXX']
+        ratios["ROI"] = None
+        ratios["Book Value Per Share"] = (val['3XXX'] - val['3120'])/ val['Shares Outstanding']
+        ratios["Operating Cash Flow Per Share"] = val['AAAA'] / val['Shares Outstanding']
+        ratios["Free Case Flow Per Share"] = (val['AAAA'] - val['B02700']) / val['Shares Outstanding']
 
     # load ratios into sqlite table
     query = f'UPDATE {FINAL_TABLE} SET '
     
     for i, (key, val) in enumerate(ratios.items()):
-        query += f'"{key}" = {val}'
+        if val is None:
+            query += f'"{key}" = NULL'  # set NULL
+        else:
+            query += f'"{key}" = {val}'
         if i<len(ratios)-1: query += ', '
 
     query += f' WHERE CO_ID = "{id}" AND Year = "{Year}" AND Quarter = "{Quarter}"'
@@ -214,5 +268,5 @@ def generate_final_data(param, connection):
     stock_return_parser(param, connection)
     generate_ratios(param, connection)
 
-    print(f'\nComplete final data: {id}, {Year}, {Quarter}')
+    print(f'\n[SUCCESS] Complete final data: {id}, {Year}, {Quarter}')
     print('----------------------------------------------------------\n')

@@ -1,39 +1,32 @@
 import os
 import subprocess
 import sqlite3
-import automated_parser_2019
-import automated_parser_2013
-import automated_parser_2009
 import financial_info_parser_lib
 import ratio_generator_lib
 from time import sleep
+import pandas as pd
+from argparse import ArgumentParser
+from CustomException import RequestError
 
-root_path = 'ratios'
+db_path = os.path.join('..', 'Database', 'stock.db')
+
+SLEEP_TIME = 30
 
 def parse(param, connection):
     year = int(param[1])
     try: 
-        # if year >= 2019:
-        #     automated_parser_2019.parse_func(param, connection)
-        # elif 2013 <= year <= 2018:
-        #     automated_parser_2013.parse_func(param, connection)
-        # elif 2009 <= year <= 2012:
-        #     raise Exception('year value not supported, in dev process')
-        # else:
-        #     raise Exception('year value not supported')
         if 2013 <= year:
             parse_func = financial_info_parser_lib.parse_func
-        elif 2009 <= year <= 2012:
-            print('year value not supported, in dev process')
-            return
         else:
-            print('year value not supported')
+            print('year value not supported, need validation to prevent breaking the database')
             return
         parse_func(param, connection)
     # try again if the data can not successfully parsed or other error occur
-    except:
-        sleep(5)
+    except RequestError:
+        sleep(SLEEP_TIME)
         parse(param, connection)
+    except:
+        raise
         
 
 def generate_ratio(param, connection):
@@ -41,9 +34,7 @@ def generate_ratio(param, connection):
 
 
 def main():
-    # return
-
-    # input:
+    # param format:
     # (stock id, year, season)
     query_param = [
                     # ('2330', '2021', '1'),
@@ -52,27 +43,105 @@ def main():
                 #    ('2330', '2021', '4'),
                    ]
 
-    if root_path not in os.listdir():
-        os.mkdir(root_path)
+    DEV_MODE = False
+    MODE = None
 
-    connection = sqlite3.connect(os.path.join(root_path, 'stock.db'))
-
-    # TODO: parallel processing
-    # for year in range(2019, 2022):
-    #     for season in range(1,5)
-    #     parse(('2330', str(year), str(season)), connection)
-
-    # for year in range(2019, 2023):
-        # parse(('2330', str(year), '4'), connection)
+    parser = ArgumentParser()
+    parser.add_argument("-b", "-batch", help="define a range of target companies to parse from 2013 to now, see index in target_company.csv", dest="batch", type=int, nargs=2)
+    parser.add_argument("-t", help="define the company id, year, quarter", dest="param_t", type=int, nargs=3)
+    parser.add_argument("-y", help="define the company id, year", dest="param_y", type=int, nargs=2)
+    parser.add_argument("-r", help="define the company id, start year, end year", dest="param_r", type=int, nargs=3)
+    parser.add_argument("-a", "-all", help="define the target company, start from a year to now", dest="param_a", type=int, nargs=2)
+    # parser.add_argument("-auto", help="define the target company, start from a year to now", dest="param_a", type=int, nargs=2)
     
-    for year in range(2018, 2020):
-        for season in range(1,5):
-            parse(('2887', str(year), str(season)), connection)
-            ratio_generator_lib.generate_final_data(('2887', str(year), str(season)), connection)
+    args = parser.parse_args()
+
+    
+    if args.batch:
+        co_start, co_end = tuple(args.batch)
+        MODE = 1
+    elif args.param_t:
+        id, year, quarter = tuple(args.param_t)
+        MODE = 2
+    elif args.param_y:
+        id, year = tuple(args.param_y)
+        MODE = 3
+    elif args.param_r:
+        id, year_start, year_end = tuple(args.param_r)
+        MODE = 4
+    elif args.param_a:
+        id, year_start = args.param_a
+        MODE = 5
+    else:
+        DEV_MODE = True
+
+
+    connection = sqlite3.connect(db_path)
+    
+    if DEV_MODE:
+        # manual configuration
+        # id = '1102.TW'
+        # for year in range(2009, 2023):
+        #     for quarter in range(1,5):
+        #         if year == 2022 and quarter == 2:
+        #             break
+
+        #         param = (id, str(year), str(quarter))
+        #         parse(param, connection)
+
+        #         ratio_generator_lib.generate_final_data(param, connection)
+        pass
+
+    elif MODE == 1:
+        INPUT_DF = pd.read_csv('target_company.csv') # target company ids
+
+        CO_ID_list = INPUT_DF.iloc[co_start : co_end+1]['CO_ID'].values
+        print(f'Current target: {CO_ID_list}\n')
+        for id in CO_ID_list:
+            for year in range(2013, 2023):
+                for quarter in range(1,5):
+                    if year == 2022 and quarter == 2:
+                        break
+                    id = id.replace('.TW', '')  # remove .TW
+                    param = (id, str(year), str(quarter))
+                    parse(param, connection)
+
+                    ratio_generator_lib.generate_final_data(param, connection)
+    elif MODE == 2:        
+        # parse one quarter
+        print(f'Current target: {id}.TW, {year}, {quarter}\n')
+
+        param = (str(id), str(year), str(quarter))   # id without .TW
+        parse(param, connection)
+        ratio_generator_lib.generate_final_data(param, connection)
+
+    elif MODE == 3:
+        # parse whole year
+        for quarter in range(1,5):
+            param = (str(id), str(year), str(quarter))   # id without .TW
+            parse(param, connection)
+            ratio_generator_lib.generate_final_data(param, connection)
+    elif MODE == 4:
+        # parse a range of years
+        for year in range(year_start, year_end+1):
+            for quarter in range(1,5):
+                param = (str(id), str(year), str(quarter))   # id without .TW
+                parse(param, connection)
+                ratio_generator_lib.generate_final_data(param, connection)
+    elif MODE == 5:
+        # parse whole year
+        for year in range(year_start, 2023):
+            for quarter in range(1,5):
+                if year == 2022 and quarter == 2:
+                    break
+                param = (str(id), str(year), str(quarter))   # id without .TW
+                parse(param, connection)
+                ratio_generator_lib.generate_final_data(param, connection)
+
 
     # parse(('2330', str('2013'), '2'), connection)
     
-    print('\n---------------- Complete ----------------')
+    connection.commit()
     connection.close()
     return
 
