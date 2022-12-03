@@ -12,7 +12,7 @@ CodeSet = {
         '130X',
         '15XX',
         '1600',
-        # '1780',   # 不檢查無形資產
+        '1780',
         '1900',
         '1XXX',
         '21XX',
@@ -34,7 +34,7 @@ CodeSet = {
 # (for reference)
 FinCompCodeSet = {
         '1170',
-        # '1780',   # 不檢查無形資產
+        '1780', 
         '1XXX',
         '3100',
         '3XXX',
@@ -146,7 +146,7 @@ def generate_ratios(param, connection):
 
     print(f'\n[TASK] Generating Ratios of {id}, {Year}, {Quarter}')
 
-    val = defaultdict(int)
+    val = {'3120' : 0}
 
     # Also CHECK if every required column exists before calculating ratios
     _codeSet = CodeSet if sector != 'Financial Services' else FinCompCodeSet
@@ -157,7 +157,9 @@ def generate_ratios(param, connection):
         result = cursor.execute(query).fetchone()
         # Note: 取第一個result, might get potential wrong value
         
-        if result is None:   # skip 特別股股本
+        # check missing columns
+        if result is None:   
+            # 忽略檢查: 特別股股本 '3120', 無形資產 '1780'
             if code != '3120':
                 missing_columns.add(code)
         else:
@@ -187,7 +189,7 @@ def generate_ratios(param, connection):
         ratios = defaultdict(int)
 
         ratios["Current Ratio"] = val['11XX'] / val['21XX']
-        ratios["Long Term Debt to Capital Ratio"] = val['Long Term Debt']/(val['Long_Term_Debt'] + val['3XXX'])
+        ratios["Long Term Debt to Capital Ratio"] = val['Long Term Debt']/(val['Long Term Debt'] + val['3XXX'])
         ratios["Debt to Equity Ratio"] = val['Long Term Debt'] / val['3XXX']
         ratios["Gross Margin"] = val['5900'] / val['4000']
         ratios["Operating Margin"] = val['6900'] / val['4000']
@@ -229,6 +231,11 @@ def generate_ratios(param, connection):
         ratios["Operating Cash Flow Per Share"] = val['AAAA'] / val['Shares Outstanding']
         ratios["Free Case Flow Per Share"] = (val['AAAA'] - val['B02700']) / val['Shares Outstanding']
 
+    # FIXME
+    # for x in val:
+    #     print(f'{x}: {val[x]}')
+    # for x in ratios:
+    #     print(f'{x}: {ratios[x]}')
     # load ratios into sqlite table
     query = f'UPDATE {FINAL_TABLE} SET '
     

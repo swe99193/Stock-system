@@ -8,8 +8,9 @@ import pandas as pd
 from argparse import ArgumentParser
 from CustomException import RequestError
 
-db_path = os.path.join('..', 'Database', 'stock.db')
-
+dbName = 'stock.db'
+db_path = os.path.join('..', 'Database', dbName)
+print(f'*** Connecting to db: {dbName} ***\n\n')
 SLEEP_TIME = 30
 
 def parse(param, connection):
