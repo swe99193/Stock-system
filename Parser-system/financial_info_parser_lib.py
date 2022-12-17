@@ -7,7 +7,7 @@ from CustomException import RequestError
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
-INPUT_DF = pd.read_csv('target_company.csv') # target company ids
+INPUT_DF = pd.read_csv(os.path.join('..', 'csv', 'target_company.csv')) # target company ids
 
 
 # [資產負債表, 損益表, 現金流量表]

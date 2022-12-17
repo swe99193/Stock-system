@@ -8,12 +8,16 @@ import pandas as pd
 from argparse import ArgumentParser
 from CustomException import RequestError
 
-dbName = 'stock.db'
+# dbName = 'stock.db'
 db_path = os.path.join('..', 'Database', dbName)
-print(f'*** Connecting to db: {dbName} ***\n\n')
+print(f'*** Using db: {dbName} ***\n\n')
 SLEEP_TIME = 30
+skip_parse = True # skip parsing web data
 
 def parse(param, connection):
+    if skip_parse:
+        return 
+
     year = int(param[1])
     try: 
         if 2013 <= year:
@@ -130,7 +134,7 @@ def main():
                 parse(param, connection)
                 ratio_generator_lib.generate_final_data(param, connection)
     elif MODE == 5:
-        # parse whole year
+        # parse whole year until now
         for year in range(year_start, 2023):
             for quarter in range(1,5):
                 if year == 2022 and quarter == 2:

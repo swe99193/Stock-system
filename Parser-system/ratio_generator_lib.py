@@ -45,7 +45,7 @@ FinCompCodeSet = {
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
-INF = 100000000
+# INF = 100000000
 
 # 季的定義是根據財報公佈時間，所以第一季是5月中～8月中左右，我們有再向後取個5天左右避免遇到假日之類的
 Q1_START = ('-05-20', '-05-25')
@@ -54,12 +54,12 @@ Q2_START = ('-08-20', '-08-25')
 Q2_END = ('-11-19', '-11-24')
 Q3_START = ('-11-20', '-11-25')
 Q3_END = ('-02-19', '-02-27')
-Q4_START = ('-04-05', '-04-13')
-Q4_END = ('-07-04', '-07-09')
+Q4_START = ('-02-20', '-02-27')
+Q4_END = ('-05-19', '-05-24')
 
 BASE_ID = '0050.TW' # 大盤 id
 
-INPUT_DF = pd.read_csv('target_company.csv') # target company ids
+INPUT_DF = pd.read_csv(os.path.join('..', 'csv', 'target_company.csv')) # target company ids
 
 FINAL_TABLE = 't_final_data'
 
@@ -86,7 +86,7 @@ def stock_return_parser(param, connection):
 
         Note: If you call this function with the same parameters again, the original data will be replaced by new data.
 
-        Note: company id SHOULD be provided with ".TW" suffix
+        Note: company id should NOT be provided with ".TW" suffix
     '''
     cursor = connection.cursor()
     id, Year, Quarter = param
@@ -100,26 +100,32 @@ def stock_return_parser(param, connection):
     if Quarter == '1':
         start = _stock_price_helper(id, Year, Q1_START)    # 個股收盤價
         end = _stock_price_helper(id, Year, Q1_END)
-        b_start = _stock_price_helper(BASE_ID, Year, Q1_START) # 大盤收盤價
-        b_end = _stock_price_helper(BASE_ID, Year, Q1_END)
+        # b_start = _stock_price_helper(BASE_ID, Year, Q1_START) # 大盤收盤價
+        # b_end = _stock_price_helper(BASE_ID, Year, Q1_END)
     elif Quarter == '2':
         start = _stock_price_helper(id, Year, Q2_START)
         end = _stock_price_helper(id, Year, Q2_END)
-        b_start = _stock_price_helper(BASE_ID, Year, Q2_START)
-        b_end = _stock_price_helper(BASE_ID, Year, Q2_END)
+        # b_start = _stock_price_helper(BASE_ID, Year, Q2_START)
+        # b_end = _stock_price_helper(BASE_ID, Year, Q2_END)
     elif Quarter == '3':
         start = _stock_price_helper(id, Year, Q3_START)
         end = _stock_price_helper(id, incr(Year), Q3_END)
-        b_start = _stock_price_helper(BASE_ID, Year, Q3_START)
-        b_end = _stock_price_helper(BASE_ID, incr(Year), Q3_END)
-    else:   # (Q == '4')
+        # b_start = _stock_price_helper(BASE_ID, Year, Q3_START)
+        # b_end = _stock_price_helper(BASE_ID, incr(Year), Q3_END)
+    elif Quarter == '4':
         start = _stock_price_helper(id, incr(Year), Q4_START)
         end = _stock_price_helper(id, incr(Year), Q4_END)
-        b_start = _stock_price_helper(BASE_ID, incr(Year), Q4_START)
-        b_end = _stock_price_helper(BASE_ID, incr(Year), Q4_END)
+        # b_start = _stock_price_helper(BASE_ID, incr(Year), Q4_START)
+        # b_end = _stock_price_helper(BASE_ID, incr(Year), Q4_END)
+    else:
+        raise Exception(f"[ERROR] illegal Quarter: {Quarter}")
 
+    # (changed to 絕對return)
     # 相對return = 個股 - 大盤
-    result = growth_rate(start, end) - growth_rate(b_start, b_end)
+    # result = growth_rate(start, end) - growth_rate(b_start, b_end)
+
+    # 絕對stock return
+    result = growth_rate(start, end)
 
     # update column "Stock Return" (sqlite)
     query = f'UPDATE {FINAL_TABLE} \
@@ -146,7 +152,7 @@ def generate_ratios(param, connection):
 
     print(f'\n[TASK] Generating Ratios of {id}, {Year}, {Quarter}')
 
-    val = {'3120' : 0}
+    val = {'3120' : 0, '1780' : 0}
 
     # Also CHECK if every required column exists before calculating ratios
     _codeSet = CodeSet if sector != 'Financial Services' else FinCompCodeSet
@@ -155,12 +161,11 @@ def generate_ratios(param, connection):
     for code in _codeSet:
         query = f'SELECT Money FROM {table} WHERE Code = "{code}"'
         result = cursor.execute(query).fetchone()
-        # Note: 取第一個result, might get potential wrong value
         
         # check missing columns
         if result is None:   
             # 忽略檢查: 特別股股本 '3120', 無形資產 '1780'
-            if code != '3120':
+            if code != '3120' and code != '1780':
                 missing_columns.add(code)
         else:
             val[code] = result[0]
@@ -174,6 +179,9 @@ def generate_ratios(param, connection):
         while 1:
             t = input('Continue? [y/n] ')
             if t == 'y':
+                # set zero for missing value
+                for x in missing_columns:
+                    val[x] = 0
                 break
             elif t == 'n':
                 raise Exception(warning)
@@ -186,7 +194,7 @@ def generate_ratios(param, connection):
         val['Long Term Investment'] = val['15XX'] - val['1600'] - val['1780'] - val['1900']
         val['Shares Outstanding'] = val['3100'] / 10    # 股本/10
         
-        ratios = defaultdict(int)
+        ratios = dict()
 
         ratios["Current Ratio"] = val['11XX'] / val['21XX']
         ratios["Long Term Debt to Capital Ratio"] = val['Long Term Debt']/(val['Long Term Debt'] + val['3XXX'])
@@ -210,7 +218,7 @@ def generate_ratios(param, connection):
     else:
         val['Shares Outstanding'] = val['3100'] / 10    # 股本/10
         
-        ratios = defaultdict(int)
+        ratios = dict()
 
         ratios["Current Ratio"] = None
         ratios["Long Term Debt to Capital Ratio"] = None
