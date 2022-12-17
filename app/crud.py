@@ -111,10 +111,9 @@ def get_company_latest_final_data(db: Session, query_param: dict):
         Y, Q = YEAR, QUARTER
         for i in range(N-1, -1, -1):
             targetYQ[i] = Y, Q
-            if Q == 1:
-                Q += 4
-                Y -= 1
-            Q -= 1
+
+            Y -= (Q == 1)
+            Q = ((Q-2)%4) + 1
 
         # append ratios
         for i, t in enumerate(targetYQ):
