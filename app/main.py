@@ -12,7 +12,9 @@ app = FastAPI()
 
 origins = [
     "http://localhost:3000",
-    "localhost:3000"
+    "localhost:3000",
+    "http://192.168.2.229:3000",
+    "192.168.2.229:3000"
 ]
 
 # Cross Origin Resource Sharing (CORS), Frontend (React.js)

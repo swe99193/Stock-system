@@ -6,7 +6,7 @@ import os
 from . import models, schemas
 
 
-INPUT_DF = pd.read_csv(os.path.join('Parser-System', 'target_company.csv')) # target company ids
+INPUT_DF = pd.read_csv(os.path.join('csv', 'target_company.csv')) # target company ids
 
 
 response_format = {
