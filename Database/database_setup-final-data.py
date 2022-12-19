@@ -8,8 +8,8 @@ import os
 #   t_final_data: store sector & financial ratios & (absolute) stock return (for each company, year, quarter)
 ######################################################################################
 
-dbName = 'stock.db'
-db_path = os.path.join('..', 'Database', dbName)
+# dbName = 'stock.db'
+db_path = dbName
 print(f'*** Using db: {dbName} ***\n\n')
 
 FINAL_TABLE = 't_final_data'

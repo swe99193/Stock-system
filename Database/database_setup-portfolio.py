@@ -2,14 +2,14 @@ import sqlite3
 import os
 
 ######################################################################################
-# db: portfolio_return.db
+# db: stock.db
 #
 # table:
 #   t_return_equal_weight: (absolute) stock return for each quarter (equal weight)
 ######################################################################################
 
-dbName = 'portfolio_return.db'
-db_path = os.path.join('..', 'Database', dbName)
+# dbName = 'stock.db'
+db_path = dbName
 print(f'*** Using db: {dbName} ***\n\n')
 
 RETURN_TABLE = 't_return_equal_weight'
