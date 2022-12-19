@@ -8,7 +8,7 @@ import os
 #   t_final_data: store sector & financial ratios & (absolute) stock return (for each company, year, quarter)
 ######################################################################################
 
-# dbName = 'stock.db'
+dbName = 'stock.db'
 db_path = dbName
 print(f'*** Using db: {dbName} ***\n\n')
 
@@ -16,6 +16,8 @@ FINAL_TABLE = 't_final_data'
 
 connection = sqlite3.connect(db_path)
 cursor = connection.cursor()
+
+# cursor.execute(f"DROP TABLE {FINAL_TABLE};")
 
 query = 'CREATE TABLE ' + FINAL_TABLE + ' (\
             CO_ID TEXT, \

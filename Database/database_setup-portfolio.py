@@ -8,14 +8,17 @@ import os
 #   t_return_equal_weight: (absolute) stock return for each quarter (equal weight)
 ######################################################################################
 
-# dbName = 'stock.db'
+dbName = 'stock.db'
 db_path = dbName
 print(f'*** Using db: {dbName} ***\n\n')
 
 RETURN_TABLE = 't_return_equal_weight'
 
+
 connection = sqlite3.connect(db_path)
 cursor = connection.cursor()
+
+# cursor.execute(f"DROP TABLE {RETURN_TABLE};")
 
 query = 'CREATE TABLE ' + RETURN_TABLE + ' (\
             Model TEXT, \
@@ -23,7 +26,7 @@ query = 'CREATE TABLE ' + RETURN_TABLE + ' (\
             Year INT, \
             Quarter INT, \
             "Stock Return" REAL, \
-            PRIMARY KEY (Year, Quarter)\
+            PRIMARY KEY (Model, Strategy, Year, Quarter)\
             );'
 cursor.execute(query)
 connection.commit()
