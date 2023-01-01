@@ -1,0 +1,13 @@
+# ┌───────────── 分鐘   (0 - 59)
+# │ ┌─────────── 小時   (0 - 23)
+# │ │ ┌───────── 日     (1 - 31)
+# │ │ │ ┌─────── 月     (1 - 12)
+# │ │ │ │ ┌───── 星期幾 (0 - 7，0 是週日，6 是週六，7 也是週日)
+# │ │ │ │ │
+# * * * * * /path/to/command
+
+* 0 31 5 * python3 /Users/hsiao/tmp/parser_script.py -batch=1 -quarter=1 >> /Users/hsiao/tmp/parser.log 2>&1
+* 2 31 5 * python3 /Users/hsiao/tmp/parser_script.py -batch=2 -quarter=1 >> /Users/hsiao/tmp/parser.log 2>&1
+* 4 31 5 * python3 /Users/hsiao/tmp/parser_script.py -batch=3 -quarter=1 >> /Users/hsiao/tmp/parser.log 2>&1
+* 6 31 5 * python3 /Users/hsiao/tmp/parser_script.py -batch=4 -quarter=1 >> /Users/hsiao/tmp/parser.log 2>&1
+* 8 31 5 * python3 /Users/hsiao/tmp/parser_script.py -batch=5 -quarter=1 >> /Users/hsiao/tmp/parser.log 2>&1
