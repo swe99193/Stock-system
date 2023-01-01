@@ -4,7 +4,8 @@ from . import crud, models, schemas
 from .database import engine
 
 from .routers import (
-    company_data
+    company_data,
+    stock_prediction
 )
 
 
@@ -29,6 +30,7 @@ app.add_middleware(
 
 models.Base.metadata.create_all(bind=engine)
 app.include_router(company_data.router)
+app.include_router(stock_prediction.router)
 
 
 # @app.get("/")

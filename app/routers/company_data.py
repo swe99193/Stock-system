@@ -14,7 +14,7 @@ async def get_company_final_data(
     Quarter: int,
     db: Session = Depends(get_db)
     ):
-    query_param = {}
+    query_param = dict()
     query_param['CO_ID'] = CO_ID
     query_param['Year'] = Year
     query_param['Quarter'] = Quarter
@@ -29,7 +29,7 @@ async def get_company_final_data(
     Quarter: int,
     db: Session = Depends(get_db)
     ):
-    query_param = {}
+    query_param = dict()
     query_param['CO_ID'] = CO_ID
     query_param['Year'] = Year
     query_param['Quarter'] = Quarter

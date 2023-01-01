@@ -35,3 +35,15 @@ class Final_data(Base):
     Stock_Return = Column("Stock Return", REAL)
 
 Index('main_index', Final_data.CO_ID, Final_data.Year, Final_data.Quarter)
+
+class Return_equal_weight(Base):
+    __tablename__ = "t_return_equal_weight"
+
+    Model = Column(TEXT, primary_key=True)
+    Strategy = Column(TEXT, primary_key=True)
+    Year = Column(INT, primary_key=True)
+    Quarter = Column(INT, primary_key=True)
+
+    Stock_Return = Column("Stock Return", REAL)
+
+Index('main_index', Return_equal_weight.Model, Return_equal_weight.Model, Return_equal_weight.Year, Return_equal_weight.Quarter)
