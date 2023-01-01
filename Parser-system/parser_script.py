@@ -1,3 +1,7 @@
+# Note:
+# main script: parse financial statements & calculate ratios
+# with different parse modes, see below
+
 import os
 import subprocess
 import sqlite3
