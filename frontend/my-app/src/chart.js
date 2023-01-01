@@ -34,6 +34,8 @@ const quarter_to_month = {
 
 /**
  * render the previous 5 quarters before a given timestamp (Year, Quarter)
+ * 
+ * source code: https://d3-graph-gallery.com/graph/line_basic.html
  */
 function Line_chart(props) {
     let data = props.data; // json

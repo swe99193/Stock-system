@@ -1,0 +1,8 @@
+/* .col div shared by chart.css */
+
+#season_return_chart h3 {
+    color: white;
+    font-size: 20px;
+    font-family: Helvetica;
+    font-weight: bold;
+}

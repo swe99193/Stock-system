@@ -1,0 +1,75 @@
+#season_return div {
+    background-color: rgb(0, 14, 108);
+    /* background-color: rgb(255, 117, 117); */
+    margin: 10px;
+    /* border: 1px solid white; */
+    color: white;
+    font-size: 14px;
+    font-family: Helvetica;
+    font-weight: bold;
+}
+
+#season_return h3 {
+    color: white;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}
+
+#acc_return div {
+    background-color: rgb(0, 14, 108);
+    /* background-color: rgb(255, 117, 117); */
+    margin: 10px;
+    /* border: 1px solid white; */
+    color: white;
+    font-size: 14px;
+    font-family: Helvetica;
+    font-weight: bold;
+}
+
+#acc_return h3 {
+    color: white;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}
+
+#rank div {
+    background-color: rgb(0, 14, 108);
+    /* background-color: rgb(255, 117, 117); */
+    margin: 10px;
+    /* border: 1px solid white; */
+    color: white;
+    font-size: 14px;
+    font-family: Helvetica;
+    font-weight: bold;
+}
+
+#rank h1 {
+    color: white;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}
+
+#rank h2 {
+    color: white;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}
+
+#rank h3 {
+    color: white;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}
+
+#rank li {
+    color: white;
+    font-size: 14px;
+    font-family: Helvetica;
+    font-weight: bold;
+    /* display: inline; */
+}

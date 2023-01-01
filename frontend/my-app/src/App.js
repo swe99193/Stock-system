@@ -15,6 +15,7 @@ import { useSearchParams, useParams, Form } from "react-router-dom";
 import axios from "axios";
 
 
+// Environment variables: https://create-react-app.dev/docs/adding-custom-environment-variables/#expanding-environment-variables-in-env
 const FrontendBaseURL = process.env.REACT_APP_FrontendBaseURL;
 const BackendBaseURL = process.env.REACT_APP_BackendBaseURL;
 
@@ -26,8 +27,10 @@ function App(props) {
     // "CO_NAME": "SAMPLE Company",
     "CO_ID": "",
     // "CO_ID": "XXXX.TW",
-    "Year": 2019,
-    "Quarter": 4,
+    // "Year": 2019,
+    "Year": "",
+    // "Quarter": 4,
+    "Quarter": "",
     "Sector": "Financial Services",
     "ratio1": [-3, 20, 30, 15, 23],
     "ratio2": [5, 2, 3.9, 1, 2.5],
@@ -54,7 +57,7 @@ function App(props) {
 
   const { CO_ID } = useParams();
   const [searchParams] = useSearchParams();
-  const [data, setData] = useState(sample_data);
+  const [data, setData] = useState(0);
   
   var Year = searchParams.get('Year');
   var Quarter = searchParams.get('Quarter');
@@ -84,16 +87,16 @@ function App(props) {
   }, []);
 
 
-  // if (!data['data_exist']){
-  //   return (
-  //   <Container>
-  //     <Row>      
-  //       <h1> No data available. </h1>
-  //     </Row>
-  //   </Container>
-  //   );
-  // }
-  // else{
+  if (data == 0){
+    // initial state
+    return (
+    <Container>
+      <Row>      
+      </Row>
+    </Container>
+    );
+  }
+  else{
     function configureFormURL(event){
       // console.log(event);
       event.preventDefault();
@@ -170,7 +173,7 @@ function App(props) {
       </Row>
     </Container>
     );
-  // }
+  }
 }
 
 export default App;
