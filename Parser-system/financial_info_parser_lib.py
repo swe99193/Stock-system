@@ -1,4 +1,5 @@
 import os
+import traceback
 import pandas as pd
 import subprocess
 import requests
@@ -7,10 +8,11 @@ from CustomException import RequestError
 
 table_name = lambda param: '_'.join(['t', param[0], param[1], param[2]])
 
-INPUT_DF = pd.read_csv(os.path.join('..', 'csv', 'target_company.csv')) # target company ids
+logger = open(os.path.join('log', "parsing.txt"), "a")
 
 
 # [資產負債表, 損益表, 現金流量表]
+# map column names to standard codes
 Standard_Code_mapping = [
 {
     '1170': '1170', 
@@ -146,7 +148,7 @@ def parse_func(param, connection):
         Parse data of a season and store it into sqlite table.
 
         param (str, str, str): (stock id, year, season) 
-        connection: sqlite connection
+        cursor: sqlite cursor
         
         Note: Data dependency: Q4 -> Q3 -> Q2 -> Q1
 
@@ -182,54 +184,49 @@ def parse_func(param, connection):
     #             print(f'Start parsing dependencies...')
     #             parse_func(new_param, connection)
         
-    print('----------------------------------------------------------')
-    print(f'[TASK] Parsing financial info of {id}, {Year}, {Quarter}')
-    ####### process target #######
-    # transaction starts
+    print(f'[INFO] 🟢 Start parser')
+
     try:
         # year 2019 ~
         if int(Year) >= 2019:
-            dfs = _parse_func_helper(param, connection)
+            dfs = _parse_func_helper(param, cursor)
         # year 2013 ~ 2018
         elif int(Year) >= 2013:
-            dfs = _parse_func_helper_2013(param, connection)
+            dfs = _parse_func_helper_2013_2018(param, cursor)
         else:
-            dfs = _parse_func_helper_before_2013(param, connection)
+            dfs = _parse_func_helper_before_2013(param, cursor)
 
-        ####### Post-process target #######
+        ####### extra processing #######
         # process Q4 損益表, 2013之前的損益表為累計資料
         if Quarter == '4' or (int(Year) < 2013 and Quarter in ['2', '3', '4']):
             income_Code = dfs[1]['Code'].to_list()
-            _process_accumulated_data(param, connection, income_Code)
+            _process_accumulated_data(param, cursor, income_Code)
 
         # process Q2 or Q3 or Q4 現金流量表
         if Quarter in ['2', '3', '4']:
             cash_Code = dfs[2]['Code'].to_list()
-            _process_accumulated_data(param, connection, cash_Code)
+            _process_accumulated_data(param, cursor, cash_Code)
+    except Exception as e:
+        error_message = f'[ERROR] ❌ parsing: {table}\n'
+        logger.write(error_message)
+        print(error_message)
+        traceback.print_exc()
+        # connection.rollback()   # not needed
+        return
 
-    # if any error occur, drop corrupted table
-    except:
-        # query = f'DROP TABLE {table};'
-        # print('[QUERY] ' + query) 
-        # cursor.execute(query)
-        # connection.commit()
-        print('----------------------------------------------------------')
-        raise
     
-    # if everything is successful, commit all changes to current table at once
     connection.commit()
-    print(f'[SUCCESS] Complete table: {table}')
+    print(f'\n[INFO] ✅ Complete parsing: {table}')
     print('----------------------------------------------------------')
 
 
-def _parse_func_helper(param, connection):
+def _parse_func_helper(param, cursor):
     ''' 
         parsing core function (2019 ~)
 
         1. insert parsed data (sqlite)
         2. return pandas table [資產負債表, 損益表, 現金流量表]
     '''
-    cursor = connection.cursor()
     table = table_name(param)
     id, Year, Quarter = param
     url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={id}&SYEAR={Year}&SSEASON={Quarter}&REPORT_ID=C'
@@ -241,23 +238,23 @@ def _parse_func_helper(param, connection):
                 Title TEXT, \
                 Money BIGINT \
                 );'
-    print('[QUERY] ' + query) 
+    print('[INFO] query: ' + query) 
     cursor.execute(query)
 
     # clear data (sqlite)
     query = f'DELETE FROM {table};'
-    print('[QUERY] ' + query)
+    print('[INFO] query: ' + query)
     cursor.execute(query)
 
     # parsing
-    print(f'parsing: {url}\n')
+    print(f'[INFO] parsing: {url}\n')
     res = requests.get(url)
     res.encoding = 'big5'
 
     try:
         dfs = pd.read_html(StringIO(res.text))[0:3]
     except ValueError:
-        print('[Error]: data not available..., could be due to too many request')
+        print('[ERROR] data not available..., could be due to too many request')
         raise RequestError
 
     try:
@@ -267,12 +264,17 @@ def _parse_func_helper(param, connection):
             if len(dfs[i].columns) < 3:
                 raise ValueError
     except (ValueError, IndexError):
-        print('[Error]: data not available..., could be due to too many request')
+        print('[ERROR] data not available..., could be due to too many request')
         raise RequestError
 
     # dfs[0]    資產負債表
     # dfs[1]    損益表
     # dfs[2]    現金流量表
+
+    # clear old csv
+    path = os.path.join('..', 'csv', 'financial_info', f"{table}.csv")
+    if os.path.exists(path):
+        os.remove(path)
 
     # save three financial statements
     for i in range(3):
@@ -289,7 +291,7 @@ def _parse_func_helper(param, connection):
         # eliminate ".0" induced by float type
         dfs[i]['Code'] = dfs[i]['Code'].str.replace('\.0','', regex=True)
         
-        # eliminate parenthesis(to minus sign) and commas
+        # eliminate right parenthesis and commas, replace left parenthesis with minus sign (negative number)
         pat_repl_dict = {'(': '-', ')':'', ',':''}
         for pat, repl in pat_repl_dict.items():
             dfs[i]['Money'] = dfs[i]['Money'].str.replace(pat, repl, regex=True)
@@ -306,36 +308,23 @@ def _parse_func_helper(param, connection):
         query = 'INSERT INTO ' + table + ' VALUES (?, ?, ?);'
         cursor.executemany(query, data)
 
-        # dfs[i].to_csv(path, encoding='utf-8', index=False)
+        # save csv (additional records)
+        dfs[i].to_csv(path, encoding='utf-8', index=False, mode="a")
 
 
     # clear duplicate rows
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
     cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
-    # # rebuild a new table with primary key
-    # new_table =  "d" + table
-    # query = 'CREATE TABLE ' + new_table + ' (\
-    #             Code TEXT PRIMARY KEY, \
-    #             Title TEXT, \
-    #             Money BIGINT \
-    #             );'
-    # cursor.execute(query)
-    # cursor.execute(f'INSERT INTO {new_table} SELECT * FROM {table};')
-    # cursor.execute(f'DROP TABLE {table};')
-    # cursor.execute(f'ALTER TABLE {new_table} RENAME TO {table};')
-    # print("[log] add Primary key: Code")
-
     return dfs
 
-def _parse_func_helper_2013(param, connection):
+def _parse_func_helper_2013_2018(param, cursor):
     ''' 
         parsing core function (2013 ~ 2018)
 
         1. insert parsed data (sqlite)
         2. return pandas table, [資產負債表, 損益表, 現金流量表]
     '''
-    cursor = connection.cursor()
     table = table_name(param)
     id, Year, Quarter = param
     url = f'https://mops.twse.com.tw/server-java/t164sb01?step=1&CO_ID={id}&SYEAR={Year}&SSEASON={Quarter}&REPORT_ID=C'
@@ -345,23 +334,23 @@ def _parse_func_helper_2013(param, connection):
                 Code TEXT, \
                 Money BIGINT \
                 );'
-    print('[QUERY] ' + query) 
+    print('[INFO] query: ' + query) 
     cursor.execute(query)
 
     # clear data (sqlite)
     query = f'DELETE FROM {table};'
-    print('[QUERY] ' + query)
+    print('[INFO] query: ' + query)
     cursor.execute(query)
 
     # parsing
-    print(f'parsing: {url}\n')
+    print(f'[INFO] parsing: {url}\n')
     res = requests.get(url)
     res.encoding = 'big5'
 
     try:
         dfs = pd.read_html(StringIO(res.text))[1:4]
     except ValueError:
-        print('[Error]: data not available..., could be due to too many request')
+        print('[ERROR] data not available..., could be due to too many request')
         raise RequestError
 
     try:
@@ -371,11 +360,17 @@ def _parse_func_helper_2013(param, connection):
             if len(dfs[i].columns) < 2:
                 raise ValueError
     except (ValueError, IndexError):
-        print('[Error]: data not available..., could be due to too many request')
+        print('[ERROR] data not available..., could be due to too many request')
         raise RequestError
+    
     # dfs[1]    資產負債表
     # dfs[2]    損益表
     # dfs[3]    現金流量表
+
+    # clear old csv
+    path = os.path.join('..', 'csv', 'financial_info', f"{table}.csv")
+    if os.path.exists(path):
+        os.remove(path)
 
     # save three financial statements
     for i in range(3):
@@ -395,35 +390,25 @@ def _parse_func_helper_2013(param, connection):
         query = 'INSERT INTO ' + table + ' VALUES (?, ?);'
         cursor.executemany(query, data)
 
-        # dfs[i].to_csv(path, encoding='utf-8', index=False)
+        # save csv (additional records)
+        dfs[i].to_csv(path, encoding='utf-8', index=False, mode="a")
 
     # clear duplicate rows
     # ref: https://dba.stackexchange.com/questions/116868/sqlite3-remove-duplicates
     cursor.execute(f'DELETE FROM {table} WHERE rowid NOT IN (SELECT min(rowid) FROM {table} GROUP BY Code)')
 
-    # # rebuild a new table with primary key
-    # new_table =  "d" + table
-    # query = 'CREATE TABLE ' + new_table + ' (\
-    #             Code TEXT PRIMARY KEY, \
-    #             Money BIGINT \
-    #             );'
-    # cursor.execute(query)
-    # cursor.execute(f'INSERT INTO {new_table} SELECT * FROM {table};')
-    # cursor.execute(f'DROP TABLE {table};')
-    # cursor.execute(f'ALTER TABLE {new_table} RENAME TO {table};')
-    # print("[log] add Primary key: Code")
-
     return dfs
 
 
-def _parse_func_helper_before_2013(param, connection):
+def _parse_func_helper_before_2013(param, cursor):
     ''' 
+        (deprecated, due to data inconsistency)
         parsing core function (~2012)
 
         1. insert parsed data (sqlite)
         2. return pandas table, [資產負債表, 損益表, 現金流量表]
     '''
-    cursor = connection.cursor()
+    raise Exception("🔴 Deprecated functions")
     table = table_name(param)
     id, Year, Quarter = param
     Year = str(int(Year) - 1911)    # 西元 -> 民國
@@ -567,37 +552,40 @@ def _parse_func_helper_before_2013(param, connection):
 
     return final_dfs
 
-def _process_accumulated_data(param, connection, Codes):
+def _process_accumulated_data(param, cursor, Codes):
     '''
-        Given codes that have accumulated data, calculate their current data
+        Given codes that have accumulated data, calculate their non-accumulated data
         ex: Q4 - (Q1+Q2+Q3)
             Q3 - (Q1+Q2)
             Q2 - (Q1)
 
-        Note: if the previous record does not have matching element, do nothing. 
-            I suppose all important rows we need will have their counterparts in the previous season.
-            For some rows that does not appear in every year, they might not be important, so we do nothing.  
+        Note: If there is no matching code (possibly missing) in the previous quarters, assume its value zero. 
+            Usually, target codes will have their counterparts in the previous quarters.
     '''
-    cursor = connection.cursor()
+    print("[INFO] Process accumulated data: ")
+    print(Codes)
+
     table = table_name(param)
     id, Year, Quarter = param
-    prev_param = [id, Year, None]
+    
     L = int(Quarter)
 
+    # accumulated value -> non-accumulated value
     for code in Codes:
-        cur_q = f'SELECT Money FROM {table} WHERE Code = "{code}"'
-        tmp = cur_val = cursor.execute(cur_q).fetchone()[0]
+        cur_query = f'SELECT Money FROM {table} WHERE Code = "{code}"'
+        cur_val = cursor.execute(cur_query).fetchone()[0]
 
         for season in range(1, L):
-            prev_param[2] = str(season)
+            prev_param = [id, Year, str(season)]
             prev_table = table_name(prev_param)
 
-            prev_q = f'SELECT Money FROM {prev_table} WHERE Code = "{code}"'
-            prev_val = cursor.execute(prev_q).fetchone()
+            prev_query = f'SELECT Money FROM {prev_table} WHERE Code = "{code}"'
+            prev_val = cursor.execute(prev_query).fetchone()
 
+            # note: sometimes, previous value does not exist
             if prev_val is not None:
                 cur_val -= prev_val[0]
     
-        if cur_val != tmp:
-            query = f'UPDATE {table} SET Money={cur_val} WHERE Code = "{code}"'
-            cursor.execute(query)
+        # update values in db
+        query = f'UPDATE {table} SET Money={cur_val} WHERE Code = "{code}"'
+        cursor.execute(query)
