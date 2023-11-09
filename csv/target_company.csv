@@ -1,98 +1,98 @@
 CO_ID,Sector,CO_NAME
-1101.TW,Basic Materials,台泥
-1102.TW,Basic Materials,亞泥
-1216.TW,Consumer Defensive,統一
-1229.TW,Consumer Defensive,聯華
-1301.TW,Basic Materials,台塑
-1303.TW,Basic Materials,南亞
-1326.TW,Basic Materials,台化 
-1402.TW,Consumer Cyclical,遠東新
-1476.TW,Consumer Cyclical,儒鴻
-1504.TW,Industrials,東元
-1605.TW,Industrials,華新
-1722.TW,Basic Materials,台肥
-1802.TW,Basic Materials,台玻
-2002.TW,Basic Materials,中鋼
-2014.TW,Basic Materials,中鴻
-2027.TW,Basic Materials,大成鋼
-2049.TW,Industrials,上銀
-2105.TW,Consumer Cyclical,正新
-2227.TW,Consumer Cyclical,裕日車
-2301.TW,Technology,光寶科
-2303.TW,Technology,聯電
-2308.TW,Technology,台達電
-2313.TW,Technology,華通
-2317.TW,Technology,鴻海
-2324.TW,Technology,仁寶
-2327.TW,Technology,國巨
-2330.TW,Technology,台積電
-2337.TW,Technology,旺宏
-2344.TW,Technology,華邦電
-2345.TW,Technology,智邦
-2347.TW,Technology,聯強
-2352.TW,Technology,佳世達
-2353.TW,Technology,宏碁
-2354.TW,Technology,鴻準
-2356.TW,Technology,英業達
-2360.TW,Technology,致茂
-2371.TW,Industrials,大同
-2376.TW,Technology,技嘉
-2377.TW,Technology,微星
-2379.TW,Technology,瑞昱
-2382.TW,Technology,廣達
-2383.TW,Technology,台光電
-2385.TW,Technology,群光
-2395.TW,Technology,研華
-2408.TW,Technology,南亞科
-2409.TW,Technology,友達
-2412.TW,Communication Services,中華電
-2454.TW,Technology,聯發科
-2474.TW,Industrials,可成
-2492.TW,Technology,華新科
-2542.TW,Real Estate,興富發
-2603.TW,Industrials,長榮
-2609.TW,Industrials,陽明
-2610.TW,Industrials,華航
-2615.TW,Industrials,萬海
-2618.TW,Industrials,長榮航
-2812.TW,Financial Services,台中銀
-2834.TW,Financial Services,臺企銀
-2880.TW,Financial Services,華南金
-2881.TW,Financial Services,富邦金
-2882.TW,Financial Services,國泰金
-2883.TW,Financial Services,開發金
-2884.TW,Financial Services,玉山金
-2885.TW,Financial Services,元大金
-2886.TW,Financial Services,兆豐金
-2887.TW,Financial Services,台新金
-2888.TW,Financial Services,新光金
-2890.TW,Financial Services,永豐金
-2891.TW,Financial Services,中信金
-2892.TW,Financial Services,第一金
-2912.TW,Consumer Defensive,統一超
-2915.TW,Consumer Cyclical,潤泰全
-3008.TW,Technology,大立光
-3023.TW,Technology,信邦
-3034.TW,Technology,聯詠
-3035.TW,Technology,智原
-3036.TW,Technology,文曄
-3037.TW,Technology,欣興
-3044.TW,Technology,健鼎
-3045.TW,Communication Services,台灣大
-3189.TW,Technology,景碩
-3231.TW,Technology,緯創
-3443.TW,Technology,創意
-3481.TW,Technology,群創
-3533.TW,Technology,嘉澤
-3702.TW,Technology,大聯大
-4904.TW,Communication Services,遠傳
-4938.TW,Technology,和碩
-6239.TW,Technology,力成
-6505.TW,Energy,台塑化
-8046.TW,Technology,南電
-9904.TW,Consumer Cyclical,寶成
-9910.TW,Consumer Cyclical,豐泰
-9914.TW,Consumer Cyclical,美利達
-9921.TW,Consumer Cyclical,巨大
-9941.TW,Financial Services,裕融
-9945.TW,Industrials,潤泰新
+"1101",Basic Materials,台泥
+"1102",Basic Materials,亞泥
+"1216",Consumer Defensive,統一
+"1229",Consumer Defensive,聯華
+"1301",Basic Materials,台塑
+"1303",Basic Materials,南亞
+"1326",Basic Materials,台化 
+"1402",Consumer Cyclical,遠東新
+"1476",Consumer Cyclical,儒鴻
+"1504",Industrials,東元
+"1605",Industrials,華新
+"1722",Basic Materials,台肥
+"1802",Basic Materials,台玻
+"2002",Basic Materials,中鋼
+"2014",Basic Materials,中鴻
+"2027",Basic Materials,大成鋼
+"2049",Industrials,上銀
+"2105",Consumer Cyclical,正新
+"2227",Consumer Cyclical,裕日車
+"2301",Technology,光寶科
+"2303",Technology,聯電
+"2308",Technology,台達電
+"2313",Technology,華通
+"2317",Technology,鴻海
+"2324",Technology,仁寶
+"2327",Technology,國巨
+"2330",Technology,台積電
+"2337",Technology,旺宏
+"2344",Technology,華邦電
+"2345",Technology,智邦
+"2347",Technology,聯強
+"2352",Technology,佳世達
+"2353",Technology,宏碁
+"2354",Technology,鴻準
+"2356",Technology,英業達
+"2360",Technology,致茂
+"2371",Industrials,大同
+"2376",Technology,技嘉
+"2377",Technology,微星
+"2379",Technology,瑞昱
+"2382",Technology,廣達
+"2383",Technology,台光電
+"2385",Technology,群光
+"2395",Technology,研華
+"2408",Technology,南亞科
+"2409",Technology,友達
+"2412",Communication Services,中華電
+"2454",Technology,聯發科
+"2474",Industrials,可成
+"2492",Technology,華新科
+"2542",Real Estate,興富發
+"2603",Industrials,長榮
+"2609",Industrials,陽明
+"2610",Industrials,華航
+"2615",Industrials,萬海
+"2618",Industrials,長榮航
+"2812",Financial Services,台中銀
+"2834",Financial Services,臺企銀
+"2880",Financial Services,華南金
+"2881",Financial Services,富邦金
+"2882",Financial Services,國泰金
+"2883",Financial Services,開發金
+"2884",Financial Services,玉山金
+"2885",Financial Services,元大金
+"2886",Financial Services,兆豐金
+"2887",Financial Services,台新金
+"2888",Financial Services,新光金
+"2890",Financial Services,永豐金
+"2891",Financial Services,中信金
+"2892",Financial Services,第一金
+"2912",Consumer Defensive,統一超
+"2915",Consumer Cyclical,潤泰全
+"3008",Technology,大立光
+"3023",Technology,信邦
+"3034",Technology,聯詠
+"3035",Technology,智原
+"3036",Technology,文曄
+"3037",Technology,欣興
+"3044",Technology,健鼎
+"3045",Communication Services,台灣大
+"3189",Technology,景碩
+"3231",Technology,緯創
+"3443",Technology,創意
+"3481",Technology,群創
+"3533",Technology,嘉澤
+"3702",Technology,大聯大
+"4904",Communication Services,遠傳
+"4938",Technology,和碩
+"6239",Technology,力成
+"6505",Energy,台塑化
+"8046",Technology,南電
+"9904",Consumer Cyclical,寶成
+"9910",Consumer Cyclical,豐泰
+"9914",Consumer Cyclical,美利達
+"9921",Consumer Cyclical,巨大
+"9941",Financial Services,裕融
+"9945",Industrials,潤泰新
